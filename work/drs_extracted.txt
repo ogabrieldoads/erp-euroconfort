@@ -1,0 +1,192 @@
+DOCUMENTO DE REQUISITOS DE SOFTWARE
+(DRS)
+ERP de Gestão Integrada — Fase 1 (MVP)
+Módulos: Estoque • Vendas • Financeiro • Logística • Indicadores
+Cliente/Empresa: Rede de 2 lojas físicas (móveis e colchões)
+Responsável pelo produto: Gestor/Proprietário
+Versão: 1.0 | Data: 10/09/2026
+Status: Em elaboração — para aprovação do Gestor
+Sumário
+1. Introdução
+2. Visão Geral do Produto
+3. Requisitos Específicos
+4. Modelo de Dados (Visão de Alto Nível)
+5. Fluxo de Processo Principal
+6. Critérios de Aceite do MVP
+7. Fora de Escopo desta Fase (Roadmap)
+8. Riscos e Mitigações
+9. Cronograma Sugerido (3 semanas)
+10. Aprovação
+1 Introdução
+1.1 Propósito do documento
+Este documento especifica os requisitos funcionais e não funcionais da Fase 1 (MVP) do ERP de gestão desenvolvido para uma rede de 2 lojas físicas do segmento de móveis e colchões. O objetivo é servir como referência única entre o Gestor (product owner) e o processo de desenvolvimento — conduzido via vibecoding com múltiplos agentes de IA — evitando ambiguidade sobre o que entra ou não nesta primeira entrega.
+1.2 Escopo do produto
+O ERP substituirá gradualmente o sistema legado "CUSTON", hoje limitado a funções básicas e sem recursos de análise visual. O MVP (Fase 1) cobre o fluxo essencial de operação da loja: cadastro de produtos e clientes, controle de estoque consolidado entre as duas unidades, registro de vendas, controle financeiro básico (caixa e contas a pagar), geração de ordens de entrega e uma tela de indicadores (Home) com relatórios de apoio à decisão.
+Nota do Desenvolvedor: Otimização geográfica de rotas de entrega, relatórios avançados/comparativos e integração com emissor de nota fiscal foram deliberadamente deixados fora desta fase — ver Seção 8 (Fora de Escopo). Tentar entregar tudo de uma vez, sozinho e com prazo apertado, é o caminho mais comum para um ERP nunca sair do papel.
+1.3 Definições, siglas e abreviações
+[TABELA]
+Termo | Definição
+ERP | Enterprise Resource Planning — sistema de gestão integrada.
+MVP | Minimum Viable Product — menor versão funcional que já entrega valor real.
+DRS | Documento de Requisitos de Software.
+CUSTON | Sistema legado atualmente em uso, a ser substituído gradualmente.
+SKU | Stock Keeping Unit — código único de identificação de um produto/variação.
+RF | Requisito Funcional.
+RNF | Requisito Não Funcional.
+[/TABELA]
+2 Visão Geral do Produto
+2.1 Perspectiva do produto
+O sistema é uma aplicação web acessada por navegador, o que permite uso em computadores nas lojas e consulta de estoque também pelo celular, sem necessidade de desenvolver um aplicativo nativo. Durante a transição, o CUSTON continuará operando em paralelo até que o novo ERP esteja validado no dia a dia.
+2.2 Funções do produto (visão geral)
+Cadastro e gestão de produtos (com estoque consolidado entre as 2 lojas)
+Cadastro de clientes
+Registro de vendas vinculado ao estoque disponível
+Controle financeiro básico: entradas/saídas de caixa e contas a pagar a fornecedores
+Geração de ordens de entrega (lista por rota/entregador, sem otimização geográfica)
+Painel Home com indicadores-chave para o Gestor
+Tela de relatórios com filtros
+2.3 Perfis de usuário
+[TABELA]
+Perfil | Descrição | Principais permissões
+Gestor/Dono | Proprietário da empresa, usuário estratégico. | Acesso total: Home, relatórios, financeiro, cadastros, configurações.
+Gerente de Loja (x2) | Um por unidade; opera vendas e atendimento. | Vendas, consulta de estoque, cadastro de clientes, emissão de ordem de entrega.
+Gerente de Estoque | Responsável pela entrada/saída física de mercadorias. | Cadastro de produtos, entrada/baixa de estoque, transferência entre lojas.
+[/TABELA]
+2.4 Restrições gerais
+Orçamento do projeto: até R$ 200,00 (uso de ferramentas gratuitas/baixo custo e agentes de IA para desenvolvimento).
+Prazo alvo: início operacional até o começo do próximo mês.
+Desenvolvimento solo, sem equipe técnica dedicada, via vibecoding com agentes de IA.
+Sem necessidade de funcionamento offline — internet nas lojas é estável.
+Não haverá migração de dados do CUSTON nesta fase (evitar retrabalho); cadastros começam do zero.
+2.5 Premissas e dependências
+Assume-se que o Gestor e os gerentes estão dispostos a recadastrar clientes e produtos manualmente durante a implantação.
+Assume-se acesso à internet estável nas duas lojas durante o horário de operação.
+A hospedagem do sistema deve usar serviços de baixo/nenhum custo compatíveis com o orçamento (ex.: planos gratuitos de hospedagem/banco de dados em nuvem), a definir na etapa de arquitetura técnica.
+3 Requisitos Específicos
+3.1 Requisitos Funcionais (RF)
+Requisitos organizados por módulo. Prioridade "Alta" indica requisitos essenciais para o sistema ser utilizável no dia 1; "Média" pode ser ajustado nas primeiras semanas de uso sem travar a operação.
+Módulo: Cadastros (Produtos e Clientes)
+[TABELA]
+ID | Requisito | Prioridade
+RF01 | O sistema deve permitir cadastrar produtos com: nome, categoria (ex.: cama, colchão, acessório), marca/modelo, preço de venda, preço de custo e SKU. | Alta
+RF02 | O sistema deve permitir cadastrar clientes com: nome, telefone, endereço (para entrega) e histórico de compras. | Alta
+RF03 | O sistema deve permitir editar e inativar (não excluir) produtos e clientes, preservando o histórico de vendas já registrado. | Média
+[/TABELA]
+Módulo: Estoque
+[TABELA]
+ID | Requisito | Prioridade
+RF04 | O sistema deve manter um saldo de estoque consolidado por produto, com visibilidade de quanto está fisicamente em cada uma das duas lojas. | Alta
+RF05 | O sistema deve permitir registrar entrada de mercadoria (compra/reposição) indicando em qual loja o produto foi recebido. | Alta
+RF06 | O sistema deve baixar automaticamente o estoque da loja correspondente sempre que uma venda for concluída. | Alta
+RF07 | O sistema deve permitir registrar transferência de um produto entre as duas lojas (ex.: produto do showroom de uma loja vendido para a outra). | Alta
+RF08 | O sistema deve alertar visualmente quando o estoque de um produto estiver abaixo de um limite mínimo configurável. | Média
+[/TABELA]
+Módulo: Vendas
+[TABELA]
+ID | Requisito | Prioridade
+RF09 | O sistema deve permitir registrar uma venda vinculando cliente, vendedor(a) responsável, loja, produto(s) e forma de pagamento. | Alta
+RF10 | O sistema não deve permitir concluir uma venda de um produto sem saldo disponível em estoque na loja de origem da venda. | Alta
+RF11 | O sistema deve registrar qual vendedor(a) realizou cada venda, para apuração de desempenho por pessoa. | Alta
+RF12 | Ao concluir uma venda, o sistema deve gerar automaticamente o lançamento correspondente de entrada de caixa (módulo Financeiro). | Alta
+[/TABELA]
+Módulo: Financeiro
+[TABELA]
+ID | Requisito | Prioridade
+RF13 | O sistema deve registrar entradas e saídas de caixa, com data, valor, categoria e loja de origem. | Alta
+RF14 | O sistema deve permitir cadastrar contas a pagar a fornecedores, com valor, vencimento e status (pendente/pago). | Alta
+RF15 | O sistema deve exibir o saldo de caixa atual, consolidado e por loja. | Alta
+RF16 | O sistema deve permitir marcar uma conta a pagar como quitada, registrando a data do pagamento. | Média
+[/TABELA]
+Módulo: Logística / Entregas
+[TABELA]
+ID | Requisito | Prioridade
+RF17 | Ao concluir uma venda com entrega, o sistema deve gerar uma ordem de entrega contendo cliente, endereço, produto(s) e entregador responsável. | Alta
+RF18 | O sistema deve permitir agrupar múltiplas ordens de entrega em uma lista simples por entregador/dia (sem cálculo automático de melhor rota nesta fase). | Alta
+RF19 | O sistema deve permitir marcar uma ordem de entrega como "entregue" ou "pendente". | Média
+[/TABELA]
+Módulo: Home e Relatórios
+[TABELA]
+ID | Requisito | Prioridade
+RF20 | A Home deve exibir, para o Gestor: faturamento do período (dia/semana/mês), saldo de caixa e contas a pagar próximas do vencimento. | Alta
+RF21 | A Home deve exibir um gráfico/ranking de desempenho de vendas por vendedor(a). | Alta
+RF22 | A Home deve exibir um gráfico/ranking de produtos e marcas/modelos mais vendidos, com opção de filtrar por categoria (ex.: camas x acessórios). | Alta
+RF23 | A tela de Relatórios deve permitir filtrar vendas, estoque e financeiro por período e por loja. | Média
+RF24 | O sistema deve permitir exportar (ex.: em CSV/PDF) os dados exibidos nos relatórios. | Baixa
+[/TABELA]
+3.2 Requisitos Não Funcionais (RNF)
+[TABELA]
+ID | Categoria | Requisito
+RNF01 | Usabilidade | A interface deve ser simples e objetiva, priorizando clareza visual sobre a quantidade de funções — o principal problema do sistema atual (CUSTON) é a falta de indicadores claros.
+RNF02 | Compatibilidade | O sistema deve funcionar corretamente em navegadores modernos (Chrome/Edge) tanto em computador quanto em celular, ao menos para consulta de estoque e Home.
+RNF03 | Desempenho | Consultas de estoque e registro de venda devem responder em no máximo poucos segundos em uso normal, dado o volume de uma rede de 2 lojas com ~10 colaboradores.
+RNF04 | Disponibilidade | O sistema deve estar disponível durante o horário comercial das lojas, considerando internet estável já confirmada nas duas unidades.
+RNF05 | Segurança e acesso | Cada usuário deve acessar com login próprio; ações críticas (ex.: exclusão de cadastro, edição de caixa) devem ficar restritas ao perfil Gestor.
+RNF06 | Baixo custo operacional | A infraestrutura (hospedagem, banco de dados) deve caber no orçamento de até R$ 200,00, priorizando serviços com camada gratuita.
+RNF07 | Continuidade | O sistema deve poder operar em paralelo ao CUSTON durante o período de transição, sem depender de migração de dados históricos.
+[/TABELA]
+3.3 Regras de Negócio
+RN01 — Uma venda só pode ser concluída se houver saldo suficiente do produto na loja de origem da venda (considerando o saldo daquela loja, não o total das duas).
+RN02 — Um produto pode ser transferido entre as duas lojas antes da venda, quando o cliente deseja um item que está fisicamente na outra unidade (ex.: showroom).
+RN03 — Toda venda concluída gera automaticamente um lançamento de entrada de caixa e, se houver entrega, uma ordem de entrega.
+RN04 — Contas a pagar vencidas e não quitadas devem aparecer destacadas na Home para o Gestor.
+RN05 — Apenas o perfil Gestor pode visualizar o financeiro consolidado das duas lojas; gerentes de loja veem o desempenho da própria unidade.
+4 Modelo de Dados (Visão de Alto Nível)
+Entidades principais que sustentam os requisitos acima. O detalhamento técnico (tipos de campo, chaves, índices) fica a cargo da etapa de implementação, mas as relações abaixo devem ser respeitadas para que o estoque consolidado e os indicadores funcionem corretamente.
+[TABELA]
+Entidade | Principais atributos | Relaciona-se com
+Loja | Nome, CNPJ, endereço | Estoque, Venda, Caixa
+Produto | Nome, categoria, marca/modelo, SKU, preço venda, preço custo | Estoque, ItemDeVenda
+Estoque | Produto, loja, quantidade | Produto, Loja
+Cliente | Nome, telefone, endereço | Venda
+Vendedor | Nome, loja | Venda
+Venda | Data, cliente, vendedor, loja, forma de pagamento, itens | Cliente, Vendedor, Loja, Produto, Caixa, OrdemDeEntrega
+MovimentoDeCaixa | Data, tipo (entrada/saída), valor, categoria, loja | Venda, Loja
+ContaAPagar | Fornecedor, valor, vencimento, status | Loja
+OrdemDeEntrega | Cliente, endereço, produtos, entregador, status | Venda, Cliente
+[/TABELA]
+5 Fluxo de Processo Principal
+Fluxo consolidado a partir da descrição inicial do Gestor, organizado em sequência lógica:
+1. Cadastro do produto no sistema (com categoria, marca/modelo e preço).
+2. Entrada do produto no estoque de uma das duas lojas.
+3. Cadastro do cliente (se ainda não existir na base).
+4. Registro da venda: seleção do cliente, do(s) produto(s) disponível(is) em estoque na loja e do vendedor responsável.
+5. Baixa automática do estoque da loja de origem e lançamento automático da entrada no caixa.
+6. Caso a venda inclua entrega, geração automática de uma ordem de entrega com endereço e produto(s).
+7. Ordem de entrega é agrupada na lista do entregador responsável pelo dia/rota.
+8. Entregador realiza a entrega e a ordem é marcada como concluída.
+9. Gestor acompanha tudo pela Home: faturamento, desempenho por vendedor(a), produtos mais vendidos, saldo de caixa e contas a pagar.
+6 Critérios de Aceite do MVP
+O MVP (Fase 1) será considerado pronto para uso quando:
+Uma venda só é registrada se houver estoque suficiente, e o estoque reflete corretamente a soma das duas lojas em tempo real.
+O Gestor consegue, na Home, identificar em menos de 1 minuto: faturamento do dia/semana, a vendedora com melhor desempenho e os produtos/marcas mais vendidos.
+O financeiro mostra claramente o saldo de caixa atual e quais contas a fornecedores estão pendentes ou vencidas.
+É possível gerar uma lista de entregas por entregador sem depender de papel.
+O sistema é utilizável em paralelo ao CUSTON, sem exigir migração de dados históricos.
+7 Fora de Escopo desta Fase (Roadmap)
+Os itens abaixo foram identificados como relevantes, porém propositalmente adiados para manter o MVP viável dentro do prazo e orçamento definidos:
+Fase 2
+Otimização geográfica de rotas de entrega (cálculo automático da melhor rota).
+Relatórios comparativos avançados, metas de vendas e projeções.
+Refinamentos de interface com base no uso real da Fase 1.
+Fase 3
+Integração com emissor de nota fiscal.
+Migração histórica de dados do CUSTON, caso ainda faça sentido no futuro.
+Possível portal/aplicativo dedicado.
+8 Riscos e Mitigações
+[TABELA]
+Risco | Impacto | Mitigação
+Desenvolvimento solo com IA pode gerar bugs em pontos críticos (baixa de estoque, caixa). | Alto | Priorizar testes manuais intensivos exatamente nos RF04–RF12 antes de liberar para uso real.
+Prazo de 3 semanas é apertado mesmo para o escopo reduzido. | Alto | Seguir estritamente a lista de prioridade "Alta" primeiro; itens "Média/Baixa" podem escorregar sem travar o uso do sistema.
+Orçamento de R$ 200 limita opções de hospedagem/infraestrutura. | Médio | Priorizar serviços com camada gratuita (hospedagem, banco de dados) compatíveis com o volume de uma rede de 2 lojas.
+Resistência da equipe em abandonar papel/WhatsApp por hábito. | Médio | Treinamento rápido com gerentes antes do go-live e período de operação em paralelo com o CUSTON.
+[/TABELA]
+9 Cronograma Sugerido (3 semanas)
+[TABELA]
+Semana | Foco
+Semana 1 | Cadastros, Estoque consolidado entre lojas e Vendas (RF01–RF12) — o núcleo do sistema.
+Semana 2 | Financeiro (RF13–RF16), Logística/Entregas (RF17–RF19) e Home com indicadores (RF20–RF22).
+Semana 3 | Relatórios (RF23), testes intensivos ponta a ponta, ajustes e treinamento dos gerentes para o go-live.
+[/TABELA]
+10 Aprovação
+Este documento deve ser revisado e aprovado pelo Gestor antes do início da implementação, servindo como referência para o desenvolvimento e para eventuais ajustes de escopo durante o projeto.
+Aprovado por: _______________________________ Data: ____/____/______

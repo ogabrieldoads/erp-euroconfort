@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ERP MVP - Móveis e Colchões</title>
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("erp_theme") || "light";
+          var accent = localStorage.getItem("erp_accent") || "#2563eb";
+          document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+          document.documentElement.style.setProperty("--accent-color", accent);
+          document.documentElement.style.setProperty("--accent", accent);
+        } catch (error) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
