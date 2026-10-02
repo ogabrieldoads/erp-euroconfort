@@ -4,6 +4,7 @@ const produtosRoutes = require("./produtos.routes");
 const vendasRoutes = require("./vendas.routes");
 const comprasRoutes = require("./compras.routes");
 const clientesRoutes = require("./clientes.routes");
+const botRoutes = require("./bot.routes");
 
 function createApiRouter(runtime) {
   const router = express.Router();
@@ -13,6 +14,7 @@ function createApiRouter(runtime) {
   router.use(vendasRoutes(dispatch));
   router.use(comprasRoutes(dispatch));
   router.use(clientesRoutes(dispatch));
+  router.use(botRoutes(dispatch));
   router.use(dispatch);
   return router;
 }

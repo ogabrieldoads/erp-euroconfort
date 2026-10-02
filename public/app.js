@@ -21,6 +21,10 @@ function readAccentPreference() {
   return validHexColor(value) ? value.toLowerCase() : "#2563eb";
 }
 
+function readDeliveryViewPreference() {
+  return localStorage.getItem("erp_deliveries_view") === "kanban" ? "kanban" : "table";
+}
+
 function hexToRgb(hex) {
   const normalized = validHexColor(hex) ? hex.slice(1) : "2563eb";
   return {
@@ -82,6 +86,7 @@ const state = {
   inviteEditorOpen: false,
   passwordUserId: "",
   approvalUserId: "",
+  approvalRequestId: "",
   loginMode: "login",
   accessRequestSuccess: false,
   publicStores: [],
@@ -90,6 +95,10 @@ const state = {
   purchaseOrderOpen: false,
   purchaseReceiveId: "",
   purchaseDetailId: "",
+  deliveriesView: readDeliveryViewPreference(),
+  deliveriesSearch: "",
+  deliveriesPerson: "",
+  deliveryColumnFormOpen: false,
   visual: {
     theme: readThemePreference(),
     accent: readAccentPreference()
@@ -111,10 +120,13 @@ const state = {
     purchaseOrders: [],
     purchaseSummary: null,
     deliveries: [],
+    deliveryKanbanColumns: [],
+    botIntegration: null,
     showroomMovements: [],
     fornecedores: [],
     vendedores: [],
     convites: [],
+    accessRequests: [],
     lojas: [],
     users: [],
     config: null,
@@ -138,6 +150,7 @@ const views = [
   ["deliveries", "Entregas", ["ADMINISTRADOR", "GESTOR_FINANCEIRO", "GERENTE_LOJA"]],
   ["finance", "Financeiro", ["ADMINISTRADOR", "GESTOR_FINANCEIRO", "GERENTE_LOJA", "OPERADOR_CAIXA"]],
   ["reports", "Relatórios", ["ADMINISTRADOR", "GESTOR_FINANCEIRO", "GERENTE_LOJA", "ESTOQUE"]],
+  ["integrations", "Integrações", ["ADMINISTRADOR"]],
   ["settings", "Configurações", ["ADMINISTRADOR"]]
 ];
 
@@ -157,6 +170,7 @@ const ICONS = {
   finance: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3z"/><path d="M3 10h18"/><path d="M7 15h4"/><path d="M16 15h1"/></svg>',
   reports: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>',
   settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.8 1.8 0 0 0 15 19.4a1.8 1.8 0 0 0-1 .6 1.8 1.8 0 0 0-.45 1.2V21a2 2 0 1 1-4 0v-.09A1.8 1.8 0 0 0 8.6 19.4a1.8 1.8 0 0 0-1.98-.36l-.08.04a2 2 0 1 1-2-3.46l.08-.04A1.8 1.8 0 0 0 5.6 14a1.8 1.8 0 0 0-.6-1 1.8 1.8 0 0 0-1.2-.45H3.7a2 2 0 1 1 0-4h.09A1.8 1.8 0 0 0 5.6 7.6a1.8 1.8 0 0 0-.36-1.98l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.8 1.8 0 0 0 10 4.6a1.8 1.8 0 0 0 1-.6 1.8 1.8 0 0 0 .45-1.2V2.7a2 2 0 1 1 4 0v.09A1.8 1.8 0 0 0 16.4 4.6a1.8 1.8 0 0 0 1.98.36l.08-.04a2 2 0 1 1 2 3.46l-.08.04A1.8 1.8 0 0 0 18.4 10c.01.36.12.7.32 1 .2.3.5.52.84.64h.09a2 2 0 1 1 0 4h-.09A1.8 1.8 0 0 0 19.4 15Z"/></svg>',
+  integrations: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8"/><path d="M7 8V5a2 2 0 0 1 2-2h2v5"/><path d="M17 16v3a2 2 0 0 1-2 2h-2v-5"/><path d="M7 16v3a2 2 0 0 0 2 2h2v-5"/><path d="M17 8V5a2 2 0 0 0-2-2h-2v5"/></svg>',
   cadastros: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><path d="M18 16v6"/><path d="M15 19h6"/></svg>'
 };
 
@@ -173,7 +187,8 @@ const MODULE_META = {
   deliveries: ["Entregas", "Ordens geradas pelas vendas e acompanhamento operacional.", "En"],
   finance: ["Financeiro", "Caixa, contas a pagar e saldos por loja.", "Fi"],
   reports: ["Relatórios", "Filtros de período, loja e exportações operacionais.", "Re"],
-  settings: ["Configurações", "Dados da empresa, recibos e controle de acessos.", "Cfg"]
+  settings: ["Configurações", "Dados da empresa, recibos e controle de acessos.", "Cfg"],
+  integrations: ["Integrações", "Conexões externas e acesso do assistente de vendas.", "Int"]
 };
 
 const STANDARD_PRODUCT_SIZES = {
@@ -286,11 +301,14 @@ async function loadData() {
   state.data.purchaseOrders = await safeLoad("/api/compras/ordens", []);
   state.data.purchaseSummary = await safeLoad("/api/compras/resumo", null);
   state.data.deliveries = await safeLoad("/api/deliveries", []);
+  state.data.deliveryKanbanColumns = await safeLoad("/api/entregas/kanban/columns", []);
   state.data.showroomMovements = await safeLoad("/api/showroom/movements", []);
   state.data.fornecedores = await safeLoad("/api/fornecedores", []);
   state.data.vendedores = await safeLoad("/api/vendedores", []);
+  state.data.botIntegration = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/integracoes/bot", null) : null;
   state.data.lojas = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/lojas", state.bootstrap.lojas || []) : state.bootstrap.lojas || [];
   state.data.users = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/users", []) : [];
+  state.data.accessRequests = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/admin/access-requests", []) : [];
   state.data.convites = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/convites", []) : [];
   await loadOverview();
 }
@@ -644,36 +662,33 @@ function renderLogin() {
   const requesting = state.loginMode === "request";
   app.innerHTML = `
     <main class="login">
-      <section class="login-panel ${requesting ? "request-access-panel" : ""}">
-        <div class="login-brand"><span class="brand-logo" aria-hidden="true">DR</span><div><h1>${requesting ? "Solicitar Acesso" : "ERP Fase 1"}</h1><p>${requesting ? "Envie seus dados para aprovação da gestão." : "Móveis e colchões"}</p></div></div>
+      <section class="login-panel auth-card ${requesting ? "request-access-panel" : ""}">
+        <div class="login-brand"><div><p class="auth-overline">EUROCONFORT</p><h1>${requesting ? "Solicitar acesso" : "Entrar no ERP"}</h1><p>${requesting ? "Seu pedido será revisado pela gestão." : "Use suas credenciais para continuar."}</p></div></div>
         ${showMessage()}
         ${requesting ? state.accessRequestSuccess ? `
           <div class="access-success" role="status">
             <span class="success-mark" aria-hidden="true">✓</span>
             <h2>Solicitação enviada</h2>
-            <p>Sua solicitação foi enviada para a gestão. Assim que um administrador aprovar seu acesso, você poderá entrar no sistema.</p>
+            <p>Recebemos sua solicitação. A gestão definirá suas permissões e enviará as instruções de acesso.</p>
           </div>
           <button class="login-link" id="back-to-login" type="button">Já possui acesso? Fazer login</button>
         ` : `
           <form id="access-request-form">
-            <label>Nome Completo <input name="nome" autocomplete="name" required></label>
-            <label>E-mail / Login de acesso desejado <input name="login" autocomplete="username" required></label>
-            <label>Filial / Unidade <select name="loja_id" required>${publicStoreOptions()}</select></label>
-            <div class="grid-2 login-password-grid">
-              <label>Senha <input name="senha" type="password" minlength="6" required autocomplete="new-password"></label>
-              <label>Confirmação de Senha <input name="confirmar_senha" type="password" minlength="6" required autocomplete="new-password"></label>
-            </div>
-            <button type="submit">Enviar Solicitação</button>
+            <label>Nome completo <input name="nome" autocomplete="name" required></label>
+            <label>E-mail corporativo <input name="email" type="email" autocomplete="email" required></label>
+            <label>Cargo solicitado <input name="cargo_solicitado" placeholder="Ex.: Vendedor(a)" required></label>
+            <label>Por que você precisa de acesso? <textarea name="justificativa" rows="3" minlength="8" required></textarea></label>
+            <button type="submit">Enviar para aprovação</button>
           </form>
           <button class="login-link" id="back-to-login" type="button">Já possui acesso? Fazer login</button>
         ` : `
           <form id="login-form">
-            <label>Usuário <input name="username" autocomplete="username" required value="gestor"></label>
-            <label>Senha <input name="password" type="password" autocomplete="current-password" required value="123456"></label>
-            <button type="submit">Entrar</button>
+            <label>E-mail ou usuário <input name="username" autocomplete="username" required></label>
+            <label>Senha <input name="password" type="password" autocomplete="current-password" required></label>
+            <button type="submit">Entrar no ERP</button>
           </form>
           <div class="login-divider"><span>ou</span></div>
-          <p class="login-request-copy">Primeiro acesso na equipe? <button class="login-link inline" id="request-access" type="button">Solicitar cadastro</button></p>
+          <p class="login-request-copy">Ainda não possui acesso? <button class="login-link inline" id="request-access" type="button">Solicitar acesso</button></p>
         `}
       </section>
     </main>
@@ -698,8 +713,7 @@ function renderLogin() {
     setMessage("");
     state.loginMode = "request";
     state.accessRequestSuccess = false;
-    state.publicStores = await safeLoad("/api/public/lojas", []);
-    renderLogin();
+      renderLogin();
   });
   document.querySelector("#back-to-login")?.addEventListener("click", () => {
     setMessage("");
@@ -710,7 +724,7 @@ function renderLogin() {
   document.querySelector("#access-request-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      await api("/api/solicitacoes-acesso", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) });
+      await api("/api/auth/request-access", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) });
       setMessage("");
       state.accessRequestSuccess = true;
       renderLogin();
@@ -819,6 +833,7 @@ function renderNav() {
     renderNavButton("deliveries"),
     renderNavButton("finance"),
     renderNavButton("reports"),
+    renderNavButton("integrations"),
     renderNavButton("settings")
   ].join("");
 }
@@ -2748,41 +2763,59 @@ function bindCashSessionForms() {
   }
 }
 
+function deliverySearchText(delivery) {
+  return [delivery.id, delivery.saleId, delivery.saleCode, delivery.customerName, delivery.deliveryPerson, ...(delivery.products || [])].join(" ").toLowerCase();
+}
+
+function deliveryCard(delivery) {
+  return `<article class="delivery-card" draggable="true" data-kanban-card="${esc(delivery.id)}" data-delivery-search="${esc(deliverySearchText(delivery))}" data-delivery-person="${esc(delivery.deliveryPerson || "")}">
+    <div class="delivery-card-head"><strong>${esc(delivery.customerName || "Cliente não informado")}</strong><span>${esc(delivery.scheduledDate || "Sem data")}</span></div>
+    <p class="delivery-address">${esc(delivery.address || "Endereço não informado")}</p>
+    <p class="delivery-products">${esc((delivery.products || []).join(", ") || "Produtos não informados")}</p>
+    <div class="delivery-card-footer"><span>Entregador: ${esc(delivery.deliveryPerson || "A definir")}</span><button class="small secondary" type="button" data-print-delivery="${esc(delivery.id)}">Romaneio PDF</button></div>
+  </article>`;
+}
+
 function renderDeliveries() {
+  const people = [...new Set(state.data.deliveries.map((delivery) => delivery.deliveryPerson).filter(Boolean))].sort();
+  const columns = state.data.deliveryKanbanColumns.length
+    ? state.data.deliveryKanbanColumns.slice().sort((a, b) => a.order - b.order)
+    : [{ id: "delivery-col-pending", title: "Pendente / A Separar", slug: "pendente", order: 1 }, { id: "delivery-col-route", title: "Em Rota", slug: "em_rota", order: 2 }, { id: "delivery-col-delivered", title: "Entregue", slug: "entregue", order: 3 }];
   renderShell(`
     <section class="page">
-      <div class="page-header"><h1>Entregas</h1></div>
-      <section class="panel">
-        <h2>Ordens por entregador/dia</h2>
-        ${searchBox("deliveries-search", "Buscar entrega, cliente, entregador ou produto")}
-        <div class="split-table">
-          <table data-search-table="deliveries"><thead><tr><th>Data</th><th>Turno</th><th>Entregador</th><th>Cliente</th><th>Endereço</th><th>Produtos</th><th>Status</th><th></th></tr></thead><tbody>
-            ${state.data.deliveries.map((delivery) => `
-              <tr data-search="${esc(delivery.id)} ${esc(delivery.saleId)} ${esc(delivery.saleCode)} ${esc(delivery.customerId)} ${esc(delivery.customerName)} ${esc(delivery.deliveryPerson)} ${esc(delivery.products.join(' '))}">
-                <td>${esc(delivery.scheduledDate)}</td>
-                <td>${esc(delivery.turno_entrega || delivery.deliveryShift || "Horário Comercial")}</td>
-                <td>${esc(delivery.deliveryPerson)}</td>
-                <td>${esc(delivery.customerName)}</td>
-                <td>${esc(delivery.address)}</td>
-                <td>${esc(delivery.products.join(", "))}</td>
-                <td>${delivery.status === "entregue" ? '<span class="status ok">Entregue</span>' : delivery.status === "cancelada" ? '<span class="status danger">Cancelada</span>' : '<span class="status warn">Pendente</span>'}</td>
-                <td><div class="row-actions"><button class="small secondary" type="button" data-print-delivery="${esc(delivery.id)}">Romaneio PDF</button>${delivery.status !== "cancelada" ? `<button class="small secondary" data-delivery="${delivery.id}" data-status="${delivery.status === "entregue" ? "pendente" : "entregue"}" type="button">${delivery.status === "entregue" ? "Reabrir" : "Entregue"}</button>` : ""}</div></td>
-              </tr>
-            `).join("") || emptyRow(8)}${emptySearchRow(8)}
-          </tbody></table>
-        </div>
+      <div class="page-header delivery-page-header"><div><h1>Entregas</h1><p class="muted">Acompanhe a separação, rota e confirmação de cada pedido.</p></div><div class="view-toggle" role="group" aria-label="Visualização das entregas"><button type="button" data-delivery-view="table" class="${state.deliveriesView === "table" ? "active" : ""}">Tabela</button><button type="button" data-delivery-view="kanban" class="${state.deliveriesView === "kanban" ? "active" : ""}">Kanban</button></div></div>
+      <section class="panel deliveries-panel">
+        <div class="delivery-filters"><label class="search-field">Buscar<input id="deliveries-search" value="${esc(state.deliveriesSearch)}" placeholder="Cliente, produto ou entrega"></label><label>Entregador<select id="deliveries-person"><option value="">Todos os entregadores</option>${people.map((person) => `<option value="${esc(person)}" ${person === state.deliveriesPerson ? "selected" : ""}>${esc(person)}</option>`).join("")}</select></label></div>
+        <div class="deliveries-table-view ${state.deliveriesView === "table" ? "is-active" : ""}"><div class="split-table"><table><thead><tr><th>Data</th><th>Turno</th><th>Entregador</th><th>Cliente</th><th>Endereço</th><th>Produtos</th><th>Status</th><th></th></tr></thead><tbody>${state.data.deliveries.map((delivery) => `<tr data-delivery-row data-delivery-search="${esc(deliverySearchText(delivery))}" data-delivery-person="${esc(delivery.deliveryPerson || "")}"><td>${esc(delivery.scheduledDate)}</td><td>${esc(delivery.turno_entrega || delivery.deliveryShift || "Horário Comercial")}</td><td>${esc(delivery.deliveryPerson)}</td><td>${esc(delivery.customerName)}</td><td>${esc(delivery.address)}</td><td>${esc((delivery.products || []).join(", "))}</td><td>${delivery.status === "entregue" ? '<span class="status ok">Entregue</span>' : delivery.status === "em_rota" ? '<span class="status info">Em rota</span>' : delivery.status === "cancelada" ? '<span class="status danger">Cancelada</span>' : '<span class="status warn">Pendente</span>'}</td><td><button class="small secondary" type="button" data-print-delivery="${esc(delivery.id)}">Romaneio PDF</button></td></tr>`).join("") || emptyRow(8)}</tbody></table></div></div>
+        ${state.deliveriesView === "kanban" ? `<div class="kanban-toolbar"><button type="button" class="small secondary" id="new-delivery-column">+ Nova Coluna</button></div>${state.deliveryColumnFormOpen ? '<form class="kanban-column-form" id="delivery-column-form"><input name="title" placeholder="Nome da etapa" required><button type="submit">Adicionar</button><button class="secondary" type="button" id="cancel-delivery-column">Cancelar</button></form>' : ""}` : ""}
+        <div class="deliveries-kanban-view ${state.deliveriesView === "kanban" ? "is-active" : ""}">${columns.map((column) => `<section class="kanban-column" draggable="true" data-kanban-column-id="${esc(column.id)}"><header><h2>${esc(column.title)}</h2><span>${state.data.deliveries.filter((delivery) => delivery.status === column.slug).length}</span></header><div class="kanban-dropzone" data-kanban-dropzone="${esc(column.slug)}">${state.data.deliveries.filter((delivery) => delivery.status === column.slug).map(deliveryCard).join("") || '<p class="kanban-empty">Nenhuma entrega</p>'}</div></section>`).join("")}</div>
       </section>
     </section>
   `);
-  bindTableSearch("deliveries-search", "deliveries");
+  const applyFilters = () => document.querySelectorAll("[data-delivery-search]").forEach((element) => {
+    element.hidden = !element.dataset.deliverySearch.includes(state.deliveriesSearch.trim().toLowerCase()) || Boolean(state.deliveriesPerson && element.dataset.deliveryPerson !== state.deliveriesPerson);
+  });
+  document.querySelector("#deliveries-search")?.addEventListener("input", (event) => { state.deliveriesSearch = event.target.value; applyFilters(); });
+  document.querySelector("#deliveries-person")?.addEventListener("change", (event) => { state.deliveriesPerson = event.target.value; applyFilters(); });
+  document.querySelectorAll("[data-delivery-view]").forEach((button) => button.addEventListener("click", () => { state.deliveriesView = button.dataset.deliveryView; localStorage.setItem("erp_deliveries_view", state.deliveriesView); renderDeliveries(); }));
+  document.querySelector("#new-delivery-column")?.addEventListener("click", () => { state.deliveryColumnFormOpen = true; renderDeliveries(); });
+  document.querySelector("#cancel-delivery-column")?.addEventListener("click", () => { state.deliveryColumnFormOpen = false; renderDeliveries(); });
+  document.querySelector("#delivery-column-form")?.addEventListener("submit", async (event) => { event.preventDefault(); try { await api("/api/entregas/kanban/columns", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); await loadData(); state.deliveryColumnFormOpen = false; setMessage("Coluna criada."); } catch (error) { setMessage(error.message, true); } renderDeliveries(); });
   bindReceiptButtons();
-  document.querySelectorAll("[data-delivery]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await api(`/api/deliveries/${button.dataset.delivery}`, { method: "PUT", body: JSON.stringify({ status: button.dataset.status }) });
-      await loadData();
-      setMessage("Entrega atualizada.");
-      renderDeliveries();
-    });
+  document.querySelectorAll("[data-kanban-card]").forEach((card) => {
+    card.addEventListener("dragstart", (event) => { event.stopPropagation(); event.dataTransfer.setData("application/x-delivery-card", card.dataset.kanbanCard); card.classList.add("is-dragging"); });
+    card.addEventListener("dragend", () => card.classList.remove("is-dragging"));
+  });
+  document.querySelectorAll("[data-kanban-dropzone]").forEach((zone) => {
+    zone.addEventListener("dragover", (event) => { event.preventDefault(); zone.classList.add("is-over"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("is-over"));
+    zone.addEventListener("drop", async (event) => { event.preventDefault(); event.stopPropagation(); zone.classList.remove("is-over"); const id = event.dataTransfer.getData("application/x-delivery-card"); const delivery = state.data.deliveries.find((item) => item.id === id); const status = String(zone.dataset.kanbanDropzone || "").trim(); if (!delivery || delivery.status === status) return; console.log("Enviando status:", status); try { await api(`/api/deliveries/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ status }) }); await loadData(); setMessage("Status da entrega atualizado."); } catch (error) { setMessage(error.message || "Não foi possível atualizar a etapa da entrega.", true); } renderDeliveries(); });
+  });
+  document.querySelectorAll("[data-kanban-column-id]").forEach((column) => {
+    column.addEventListener("dragstart", (event) => { event.dataTransfer.setData("application/x-delivery-column", column.dataset.kanbanColumnId); column.classList.add("is-dragging"); });
+    column.addEventListener("dragend", () => column.classList.remove("is-dragging"));
+    column.addEventListener("dragover", (event) => { if (event.dataTransfer.types.includes("application/x-delivery-column")) event.preventDefault(); });
+    column.addEventListener("drop", async (event) => { const movedId = event.dataTransfer.getData("application/x-delivery-column"); if (!movedId || movedId === column.dataset.kanbanColumnId) return; event.preventDefault(); const order = columns.map((item) => item.id); order.splice(order.indexOf(movedId), 1); order.splice(order.indexOf(column.dataset.kanbanColumnId), 0, movedId); try { await api("/api/entregas/kanban/columns/reorder", { method: "PUT", body: JSON.stringify({ columnIds: order }) }); await loadData(); setMessage("Colunas reordenadas."); } catch (error) { setMessage(error.message, true); } renderDeliveries(); });
   });
 }
 
@@ -2849,6 +2882,17 @@ function renderReports() {
     renderReports();
   });
   document.querySelector("#export-csv").addEventListener("click", exportReportsCsv);
+}
+
+function renderIntegrations() {
+  const integration = state.data.botIntegration || { apiKey: "", vendedores: [] };
+  renderShell(`<section class="page"><div class="page-header"><div><h1>Integrações</h1><p class="muted">Conecte o catálogo e a equipe comercial ao seu chatbot.</p></div></div>
+    <section class="panel"><h2>Chave de Acesso do Bot (API Key)</h2><p class="muted">Envie esta chave no cabeçalho <code>x-bot-token</code>. Trate-a como uma senha.</p><div class="integration-key"><code>${esc(integration.apiKey || "Não disponível")}</code><button class="small secondary" id="copy-bot-key" type="button">Copiar</button><button class="small" id="regenerate-bot-key" type="button">Regenerar Token</button></div></section>
+    <section class="panel"><h2>Documentação rápida dos endpoints</h2><div class="integration-endpoints"><article><code>POST /api/bot/auth</code><p>Vincula um WhatsApp com telefone e código temporário de seis dígitos.</p></article><article><code>GET /api/bot/estoque?q={termo}</code><p>Consulta catálogo, saldo total, depósito e disponibilidade por unidade.</p></article></div></section>
+    <section class="panel"><h2>WhatsApp dos Vendedores Vinculados</h2><div class="split-table"><table><thead><tr><th>Vendedor</th><th>WhatsApp autorizado</th><th>Vinculado em</th><th></th></tr></thead><tbody>${integration.vendedores.map((seller) => `<tr><td>${esc(seller.nome)}</td><td>${esc(seller.whatsapp_phone)}</td><td>${esc(formatDateTime(seller.vinculado_em))}</td><td><button class="small danger" data-unlink-bot-seller="${esc(seller.id)}" type="button">Desvincular</button></td></tr>`).join("") || emptyRow(4)}</tbody></table></div></section></section>`);
+  document.querySelector("#copy-bot-key")?.addEventListener("click", async () => { await navigator.clipboard.writeText(integration.apiKey); setMessage("Chave copiada."); renderIntegrations(); });
+  document.querySelector("#regenerate-bot-key")?.addEventListener("click", async () => { if (!window.confirm("Regenerar a chave desconectará bots que usam a chave atual.")) return; try { await api("/api/integracoes/bot/regenerate-token", { method: "POST" }); state.data.botIntegration = await api("/api/integracoes/bot"); setMessage("Chave regenerada."); } catch (error) { setMessage(error.message, true); } renderIntegrations(); });
+  document.querySelectorAll("[data-unlink-bot-seller]").forEach((button) => button.addEventListener("click", async () => { try { await api(`/api/integracoes/bot/vendedores/${encodeURIComponent(button.dataset.unlinkBotSeller)}`, { method: "DELETE" }); state.data.botIntegration = await api("/api/integracoes/bot"); setMessage("WhatsApp desvinculado."); } catch (error) { setMessage(error.message, true); } renderIntegrations(); }));
 }
 
 function settingTabButton(id, label) {
@@ -2985,7 +3029,9 @@ function renderUserSettings() {
   const editor = state.userEditor;
   const passwordUser = state.passwordUserId ? userById(state.passwordUserId) : null;
   const approvalUser = state.approvalUserId ? userById(state.approvalUserId) : null;
-  const pendingRequests = state.data.users.filter((user) => user.status === "PENDENTE_APROVACAO");
+  const pendingRequests = state.data.accessRequests?.length
+    ? state.data.accessRequests.map((request) => ({ ...request.usuario, requestId: request.id, cargo_solicitado: request.cargo_solicitado, justificativa_acesso: request.justificativa, solicitado_em: request.criado_em }))
+    : state.data.users.filter((user) => user.status === "PENDENTE_APROVACAO");
   const teamUsers = state.data.users.filter((user) => !["PENDENTE_APROVACAO", "REJEITADO"].includes(user.status));
   const pendingInvites = state.data.convites.filter((invite) => invite.status === "PENDENTE");
   return `
@@ -2997,14 +3043,14 @@ function renderUserSettings() {
         </div>
       </div>
       <div class="split-table">
-        <table><thead><tr><th>Nome</th><th>E-mail / Login</th><th>Loja solicitada</th><th>Data da solicitação</th><th>Ações</th></tr></thead><tbody>
+        <table><thead><tr><th>Nome</th><th>E-mail</th><th>Cargo / justificativa</th><th>Data</th><th>Ações</th></tr></thead><tbody>
           ${pendingRequests.map((request) => `
             <tr>
               <td><strong>${esc(request.nome || request.name)}</strong></td>
               <td>${esc(request.login || request.username)}</td>
-              <td>${esc(linkedStoreLabel(request))}</td>
+              <td><strong>${esc(request.cargo_solicitado || "Não informado")}</strong><br><small class="muted">${esc(request.justificativa_acesso || "Solicitação legada")}</small></td>
               <td>${esc(formatDateTime(request.solicitado_em || request.criado_em))}</td>
-              <td><div class="row-actions"><button type="button" class="small" data-approve-request="${esc(request.id)}">Aprovar</button><button type="button" class="small danger-button" data-reject-request="${esc(request.id)}">Rejeitar</button></div></td>
+              <td><div class="row-actions"><button type="button" class="small" data-approve-request="${esc(request.requestId || request.id)}" data-request-user="${esc(request.id)}">Aprovar</button><button type="button" class="small danger-button" data-reject-request="${esc(request.requestId || request.id)}" data-request-user="${esc(request.id)}">Rejeitar</button></div></td>
             </tr>
           `).join("") || emptyRow(5)}
         </tbody></table>
@@ -3158,6 +3204,7 @@ function renderUserSettings() {
               <label>Papel oficial <select name="papel" id="approval-papel" required>${papelOptions("OPERADOR_CAIXA")}</select></label>
               <label>Loja vinculada <select name="loja_id" id="approval-loja">${allUnitOptions(approvalUser.loja_id || state.bootstrap?.stores?.[0]?.id || "")}</select></label>
             </div>
+            <label>Senha temporária <input name="senha" type="password" minlength="6" required autocomplete="new-password"></label>
             <div class="toolbar modal-actions"><button class="secondary" type="button" data-close-approval-modal>Cancelar</button><button type="submit">Confirmar Aprovação</button></div>
           </form>
         </section>
@@ -3401,17 +3448,22 @@ function bindSettings() {
   });
   document.querySelectorAll("[data-approve-request]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.approvalUserId = button.dataset.approveRequest;
+      state.approvalUserId = button.dataset.requestUser || button.dataset.approveRequest;
+      state.approvalRequestId = button.dataset.approveRequest;
       renderSettings();
     });
   });
   document.querySelectorAll("[data-reject-request]").forEach((button) => {
     button.addEventListener("click", async () => {
-      const account = userById(button.dataset.rejectRequest);
+      const account = userById(button.dataset.requestUser || button.dataset.rejectRequest);
       if (!window.confirm(`Rejeitar a solicitação de ${account.nome || account.name}?`)) return;
       try {
-        await api(`/api/users/${encodeURIComponent(account.id)}/reject`, { method: "PUT" });
+        const path = button.dataset.requestUser
+          ? `/api/admin/access-requests/${encodeURIComponent(button.dataset.rejectRequest)}/reject`
+          : `/api/users/${encodeURIComponent(account.id)}/reject`;
+        await api(path, { method: button.dataset.requestUser ? "POST" : "PUT" });
         state.data.users = await api("/api/users");
+        state.data.accessRequests = await safeLoad("/api/admin/access-requests", []);
         setMessage("Solicitação rejeitada.");
       } catch (error) {
         setMessage(error.message, true);
@@ -3423,6 +3475,7 @@ function bindSettings() {
     element.addEventListener("click", (event) => {
       if (event.target.hasAttribute("data-close-approval-modal")) {
         state.approvalUserId = "";
+        state.approvalRequestId = "";
         renderSettings();
       }
     });
@@ -3443,9 +3496,14 @@ function bindSettings() {
     approvalForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
-        await api(`/api/users/${encodeURIComponent(state.approvalUserId)}/approve`, { method: "PUT", body: JSON.stringify(Object.fromEntries(new FormData(approvalForm))) });
+        const path = state.approvalRequestId
+          ? `/api/admin/access-requests/${encodeURIComponent(state.approvalRequestId)}/approve`
+          : `/api/users/${encodeURIComponent(state.approvalUserId)}/approve`;
+        await api(path, { method: state.approvalRequestId ? "POST" : "PUT", body: JSON.stringify(Object.fromEntries(new FormData(approvalForm))) });
         state.data.users = await api("/api/users");
+        state.data.accessRequests = await safeLoad("/api/admin/access-requests", []);
         state.approvalUserId = "";
+        state.approvalRequestId = "";
         setMessage("Solicitação aprovada. O integrante já pode entrar no sistema.");
       } catch (error) {
         setMessage(error.message, true);
@@ -3674,6 +3732,7 @@ function render() {
     finance: renderFinance,
     deliveries: renderDeliveries,
     reports: renderReports,
+    integrations: renderIntegrations,
     settings: renderSettings
   };
   renderers[state.view]();

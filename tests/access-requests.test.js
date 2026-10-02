@@ -101,3 +101,38 @@ test("solicitação de acesso exige aprovação e respeita aprovação ou rejei�
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("novo fluxo de acesso registra cargo, aguarda gestor e libera credencial temporária", async () => {
+  const { server, baseUrl } = await startServer();
+  try {
+    const requestAccess = await request(baseUrl, "POST", "/api/auth/request-access", null, {
+      nome: "Ana Comercial",
+      email: "ana.comercial@example.com",
+      cargo_solicitado: "Consultora de vendas",
+      justificativa: "Preciso consultar o catálogo e registrar pedidos da loja."
+    });
+    assert.equal(requestAccess.response.status, 200);
+    assert.equal(requestAccess.payload.status, "pending");
+
+    const pendingLogin = await request(baseUrl, "POST", "/api/auth/login", null, { login: "ana.comercial@example.com", password: "qualquer" });
+    assert.equal(pendingLogin.response.status, 400);
+    assert.match(pendingLogin.payload.error, /aguardando aprovação/);
+
+    const manager = await request(baseUrl, "POST", "/api/auth/login", null, { login: "gestor", password: "123456" });
+    const pending = await request(baseUrl, "GET", "/api/admin/access-requests", manager.payload.token);
+    assert.equal(pending.response.status, 200);
+    const access = pending.payload.find((item) => item.email === "ana.comercial@example.com");
+    assert.equal(access.cargo_solicitado, "Consultora de vendas");
+
+    const approved = await request(baseUrl, "POST", `/api/admin/access-requests/${access.id}/approve`, manager.payload.token, {
+      papel: "OPERADOR_CAIXA", loja_id: "loja_1", senha: "senha123"
+    });
+    assert.equal(approved.response.status, 200);
+    assert.equal(approved.payload.user.status, "ATIVO");
+
+    const activeLogin = await request(baseUrl, "POST", "/api/auth/login", null, { login: "ana.comercial@example.com", password: "senha123" });
+    assert.equal(activeLogin.response.status, 200);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

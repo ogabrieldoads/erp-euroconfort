@@ -125,6 +125,8 @@ function normalizeUsuario(user, knownLojaIds) {
     status,
     solicitado_em: timestampOrNull(user.solicitado_em || user.requestedAt),
     aprovado_por: nullableText(user.aprovado_por || user.approvedBy),
+    cargo_solicitado: nullableText(user.cargo_solicitado || user.cargoSolicitado),
+    justificativa_acesso: nullableText(user.justificativa_acesso || user.justificativa),
     criado_em: timestamp(user.criado_em || user.createdAt)
   };
 }
@@ -325,8 +327,8 @@ async function upsertLojas(client, lojas) {
 
 async function upsertUsuarios(client, usuarios) {
   const sql = `
-    INSERT INTO usuarios (id, nome, login, senha_hash, papel, loja_id, ativo, status, solicitado_em, aprovado_por, criado_em)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10)
+    INSERT INTO usuarios (id, nome, login, senha_hash, papel, loja_id, ativo, status, solicitado_em, aprovado_por, cargo_solicitado, justificativa_acesso, criado_em)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12)
     ON CONFLICT (id) DO UPDATE SET
       nome = EXCLUDED.nome,
       login = EXCLUDED.login,
@@ -336,10 +338,12 @@ async function upsertUsuarios(client, usuarios) {
       ativo = EXCLUDED.ativo,
       status = EXCLUDED.status,
       solicitado_em = EXCLUDED.solicitado_em,
+      cargo_solicitado = EXCLUDED.cargo_solicitado,
+      justificativa_acesso = EXCLUDED.justificativa_acesso,
       criado_em = EXCLUDED.criado_em
   `;
   for (const usuario of usuarios) {
-    await client.query(sql, [usuario.id, usuario.nome, usuario.login, usuario.senha_hash, usuario.papel, usuario.loja_id, usuario.ativo, usuario.status, usuario.solicitado_em, usuario.criado_em]);
+    await client.query(sql, [usuario.id, usuario.nome, usuario.login, usuario.senha_hash, usuario.papel, usuario.loja_id, usuario.ativo, usuario.status, usuario.solicitado_em, usuario.cargo_solicitado, usuario.justificativa_acesso, usuario.criado_em]);
   }
   const knownIds = new Set(usuarios.map((usuario) => usuario.id));
   for (const usuario of usuarios) {
@@ -575,26 +579,28 @@ function prepareRows(db) {
   const movementSource = arrayFrom(db, "movimentacoes_estoque", "stockMovements");
   const movimentacoes = movementSource.map((movement) => normalizeMovimentacao(movement, knownProdutoIds)).filter((movement) => movement.tipo && movement.quantidade !== 0);
   const sessoes = uniqueById(arrayFrom(db, "sessoes_caixa").map((session) => normalizeSessaoCaixa(session, knownLojaIds, knownUserIds)).filter((session) => session.id && session.status));
-  const vendedores = uniqueById(arrayFrom(db, "vendedores", "sellers")).map((row) => ({ id: text(row.id), nome: text(row.nome || row.name), loja_id: text(row.loja_id || row.storeId) || "loja_1", comissao_padrao: number(row.comissao_padrao, 0), ativo: row.ativo !== false && row.active !== false, criado_em: timestamp(row.criado_em || row.createdAt) })).filter((row) => row.id && row.nome && knownLojaIds.has(row.loja_id));
+  const vendedores = uniqueById(arrayFrom(db, "vendedores", "sellers")).map((row) => ({ id: text(row.id), nome: text(row.nome || row.name), loja_id: text(row.loja_id || row.storeId) || "loja_1", comissao_padrao: number(row.comissao_padrao, 0), ativo: row.ativo !== false && row.active !== false, bot_auth_code: nullableText(row.bot_auth_code), bot_code_expires_at: timestampOrNull(row.bot_code_expires_at), whatsapp_phone: nullableText(row.whatsapp_phone), criado_em: timestamp(row.criado_em || row.createdAt) })).filter((row) => row.id && row.nome && knownLojaIds.has(row.loja_id));
   const entregas = uniqueById(arrayFrom(db, "deliveryOrders")).map((row) => ({ id: text(row.id), venda_id: text(row.saleId), cliente_id: nullableText(row.customerId), endereco_entrega: row.customerAddress || { endereco: text(row.address) }, turno: nullableText(row.turno_entrega || row.deliveryShift), status: text(row.status || "pendente"), motorista: nullableText(row.deliveryPerson), data_agendada: nullableText(row.scheduledDate), assinado_por: nullableText(row.assinado_por), comprovante_url: nullableText(row.comprovante_url), criado_em: timestamp(row.createdAt) })).filter((row) => row.id && row.venda_id);
   const movimentosCaixa = uniqueById(arrayFrom(db, "cashMovements")).map((row) => ({ id: text(row.id), sessao_caixa_id: nullableText(row.sessao_caixa_id), loja_id: text(row.storeId), tipo: row.category === "Sangria" ? "SANGRIA" : row.category === "Venda" ? "ENTRADA_VENDA" : row.category === "Estorno" ? "ESTORNO" : row.category === "Conta a pagar" ? "CONTA_PAGAR" : "OUTRO", valor: number(row.value), forma_pagamento: nullableText(row.paymentMethod), motivo: nullableText(row.description), operador_id: nullableText(row.operatorId), criado_em: timestamp(row.createdAt || row.date) })).filter((row) => row.id && knownLojaIds.has(row.loja_id));
   const contasManuais = uniqueById(arrayFrom(db, "bills")).map((row) => ({ id: text(row.id), fornecedor_id: nullableText(row.fornecedor_id), loja_id: text(row.storeId), categoria: text(row.category || "Despesa geral"), descricao: nullableText(row.description || row.supplier), valor: number(row.value), vencimento: text(row.dueDate), status: text(row.status || "pendente"), pago_em: nullableText(row.paidAt), criado_em: timestamp(row.createdAt) })).filter((row) => row.id && row.loja_id && row.vencimento);
   const convites = uniqueById(arrayFrom(db, "convites")).map((row) => ({ id: text(row.id), token: text(row.token), email: text(row.email), papel: text(row.papel), loja_id: text(row.loja_id), expiracao: timestamp(row.expira_em || row.expiracao || row.expiresAt), usado: row.status === "CONCLUIDO" || row.usado === true, criado_em: timestamp(row.criado_em || row.createdAt) })).filter((row) => row.id && row.token && row.email && knownLojaIds.has(row.loja_id));
   const configuracoes = Object.entries(db.configuracoes_empresa || {}).map(([chave, valor]) => ({ chave, valor, atualizado_em: timestamp(db.meta?.updatedAt) }));
-  return { lojas, usuarios, produtos, fornecedores, ordensCompra, itensOrdemCompra, contasPagar, clientes, sales, vendas, movimentacoes, sessoes, vendedores, entregas, movimentosCaixa, contasManuais, convites, configuracoes, knownProdutoIds };
+  const solicitacoesAcesso = uniqueById(arrayFrom(db, "solicitacoes_acesso")).map((row) => ({ id: text(row.id), usuario_id: text(row.usuario_id), nome: text(row.nome), email: text(row.email), cargo_solicitado: text(row.cargo_solicitado), justificativa: text(row.justificativa), status: text(row.status || "pending").toLowerCase(), analisado_por: nullableText(row.analisado_por), analisado_em: timestampOrNull(row.analisado_em), criado_em: timestamp(row.criado_em) })).filter((row) => row.id && knownUserIds.has(row.usuario_id) && row.email && row.cargo_solicitado && row.justificativa && ["pending", "approved", "rejected"].includes(row.status));
+  return { lojas, usuarios, produtos, fornecedores, ordensCompra, itensOrdemCompra, contasPagar, clientes, sales, vendas, movimentacoes, sessoes, vendedores, entregas, movimentosCaixa, contasManuais, convites, configuracoes, solicitacoesAcesso, knownProdutoIds };
 }
 
 async function upsertExtras(client, rows) {
-  for (const row of rows.vendedores) await client.query("INSERT INTO vendedores (id,nome,loja_id,comissao_padrao,ativo,criado_em) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,loja_id=EXCLUDED.loja_id,comissao_padrao=EXCLUDED.comissao_padrao,ativo=EXCLUDED.ativo", [row.id,row.nome,row.loja_id,row.comissao_padrao,row.ativo,row.criado_em]);
+  for (const row of rows.vendedores) await client.query("INSERT INTO vendedores (id,nome,loja_id,comissao_padrao,ativo,bot_auth_code,bot_code_expires_at,whatsapp_phone,criado_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,loja_id=EXCLUDED.loja_id,comissao_padrao=EXCLUDED.comissao_padrao,ativo=EXCLUDED.ativo,bot_auth_code=EXCLUDED.bot_auth_code,bot_code_expires_at=EXCLUDED.bot_code_expires_at,whatsapp_phone=EXCLUDED.whatsapp_phone", [row.id,row.nome,row.loja_id,row.comissao_padrao,row.ativo,row.bot_auth_code,row.bot_code_expires_at,row.whatsapp_phone,row.criado_em]);
   for (const row of rows.entregas) await client.query("INSERT INTO entregas (id,venda_id,cliente_id,endereco_entrega,turno,status,motorista,data_agendada,assinado_por,comprovante_url,criado_em) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,turno=EXCLUDED.turno,motorista=EXCLUDED.motorista,data_agendada=EXCLUDED.data_agendada", [row.id,row.venda_id,row.cliente_id,json(row.endereco_entrega,{}),row.turno,row.status,row.motorista,row.data_agendada,row.assinado_por,row.comprovante_url,row.criado_em]);
   for (const row of rows.movimentosCaixa) await client.query("INSERT INTO movimentacoes_caixa (id,sessao_caixa_id,loja_id,tipo,valor,forma_pagamento,motivo,operador_id,criado_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING", [row.id,row.sessao_caixa_id,row.loja_id,row.tipo,row.valor,row.forma_pagamento,row.motivo,row.operador_id,row.criado_em]);
   for (const row of rows.contasManuais) await client.query("INSERT INTO contas_pagar_manuais (id,fornecedor_id,loja_id,categoria,descricao,valor,vencimento,status,pago_em,criado_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,pago_em=EXCLUDED.pago_em", [row.id,row.fornecedor_id,row.loja_id,row.categoria,row.descricao,row.valor,row.vencimento,row.status,row.pago_em,row.criado_em]);
   for (const row of rows.convites) await client.query("INSERT INTO convites (id,token,email,papel,loja_id,expiracao,usado,criado_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO UPDATE SET usado=EXCLUDED.usado,expiracao=EXCLUDED.expiracao", [row.id,row.token,row.email,row.papel,row.loja_id,row.expiracao,row.usado,row.criado_em]);
   for (const row of rows.configuracoes) await client.query("INSERT INTO configuracoes_empresa (chave,valor,atualizado_em) VALUES ($1,$2::jsonb,$3) ON CONFLICT (chave) DO UPDATE SET valor=EXCLUDED.valor,atualizado_em=EXCLUDED.atualizado_em", [row.chave,json(row.valor,{}),row.atualizado_em]);
+  for (const row of rows.solicitacoesAcesso) await client.query("INSERT INTO solicitacoes_acesso (id,usuario_id,nome,email,cargo_solicitado,justificativa,status,analisado_por,analisado_em,criado_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,analisado_por=EXCLUDED.analisado_por,analisado_em=EXCLUDED.analisado_em", [row.id,row.usuario_id,row.nome,row.email,row.cargo_solicitado,row.justificativa,row.status,row.analisado_por,row.analisado_em,row.criado_em]);
 }
 
 async function validateMigration(client, rows) {
-  const entities = [["lojas","lojas"],["usuarios","usuarios"],["produtos","produtos"],["fornecedores","fornecedores"],["ordensCompra","ordens_compra"],["itensOrdemCompra","itens_ordem_compra"],["contasPagar","contas_a_pagar"],["clientes","clientes"],["vendas","vendas"],["movimentacoes","movimentacoes_estoque"],["sessoes","sessoes_caixa"],["vendedores","vendedores"],["entregas","entregas"],["movimentosCaixa","movimentacoes_caixa"],["contasManuais","contas_pagar_manuais"],["convites","convites"],["configuracoes","configuracoes_empresa"]];
+  const entities = [["lojas","lojas"],["usuarios","usuarios"],["produtos","produtos"],["fornecedores","fornecedores"],["ordensCompra","ordens_compra"],["itensOrdemCompra","itens_ordem_compra"],["contasPagar","contas_a_pagar"],["clientes","clientes"],["vendas","vendas"],["movimentacoes","movimentacoes_estoque"],["sessoes","sessoes_caixa"],["vendedores","vendedores"],["entregas","entregas"],["movimentosCaixa","movimentacoes_caixa"],["contasManuais","contas_pagar_manuais"],["convites","convites"],["configuracoes","configuracoes_empresa"],["solicitacoesAcesso","solicitacoes_acesso"]];
   const report = [];
   for (const [key, table] of entities) {
     const result = table === "lojas"

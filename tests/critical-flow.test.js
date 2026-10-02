@@ -108,6 +108,10 @@ test("fluxo crítico: venda valida estoque, baixa saldo, gera caixa e entrega", 
     assert.equal(sale.payload.sale.vendedorNome, "Vendedora Loja 1");
     assert.equal(sale.payload.deliveryOrder.status, "pendente");
 
+    const enRoute = await request(baseUrl, "PUT", `/api/deliveries/${sale.payload.deliveryOrder.id}`, token, { status: "Em Rota" });
+    assert.equal(enRoute.response.status, 200);
+    assert.equal(enRoute.payload.status, "em_rota");
+
     const stock = await request(baseUrl, "GET", "/api/stock", token);
     const productStock = stock.payload.find((row) => row.product.id === product.payload.id);
     assert.equal(productStock.saldo_deposito, 1);

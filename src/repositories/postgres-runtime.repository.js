@@ -10,7 +10,50 @@ function saleRows(data) {
 async function projectCriticalFlow(client, data, pathname, method) {
   const isSale = pathname === "/api/sales" && method === "POST";
   const isPurchaseReceipt = /^\/api\/compras\/ordens\/[^/]+\/receber$/.test(pathname) && method === "POST";
-  if (!isSale && !isPurchaseReceipt) return;
+  const isDeliveryStatus = /^\/api\/deliveries\/[^/]+$/.test(pathname) && method === "PUT";
+  const isDeliveryKanban = pathname.startsWith("/api/entregas/kanban/columns");
+  const isBotIntegration = pathname.startsWith("/api/bot/") || pathname.startsWith("/api/integracoes/bot") || pathname === "/api/vendedores/gerar-token-bot";
+  const isAccessRequest = pathname === "/api/auth/request-access" || /^\/api\/admin\/access-requests\//.test(pathname);
+  if (!isSale && !isPurchaseReceipt && !isAccessRequest && !isDeliveryStatus && !isDeliveryKanban && !isBotIntegration) return;
+
+  if (isBotIntegration) {
+    for (const seller of data.vendedores || []) {
+      await client.query("UPDATE vendedores SET bot_auth_code=$1, bot_code_expires_at=$2, whatsapp_phone=$3 WHERE id=$4", [seller.bot_auth_code || null, seller.bot_code_expires_at || null, seller.whatsapp_phone || null, seller.id]);
+    }
+    if (data.configuracoes_empresa?.bot_api_key) await client.query("INSERT INTO configuracoes_empresa (chave,valor,atualizado_em) VALUES ($1,$2::jsonb,now()) ON CONFLICT (chave) DO UPDATE SET valor=EXCLUDED.valor,atualizado_em=EXCLUDED.atualizado_em", ["bot_api_key", JSON.stringify(data.configuracoes_empresa.bot_api_key)]);
+  }
+
+  if (isDeliveryStatus) {
+    for (const delivery of data.deliveryOrders || []) {
+      await client.query("UPDATE entregas SET status = $1 WHERE id = $2", [delivery.status, delivery.id]);
+    }
+  }
+
+  if (isDeliveryKanban) {
+    for (const column of data.kanban_entregas_colunas || []) {
+      await client.query("INSERT INTO entregas_kanban_colunas (id,titulo,slug,posicao) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO UPDATE SET titulo=EXCLUDED.titulo,slug=EXCLUDED.slug,posicao=EXCLUDED.posicao", [column.id, column.title, column.slug, column.order]);
+    }
+    if (method === "DELETE") await client.query("DELETE FROM entregas_kanban_colunas WHERE id = $1", [pathname.split("/").pop()]);
+  }
+
+  if (isAccessRequest) {
+    for (const account of data.usuarios || []) {
+      const loginConflict = await client.query("SELECT id FROM usuarios WHERE login = $1", [account.login]);
+      const persistedLogin = loginConflict.rows[0] && loginConflict.rows[0].id !== account.id
+        ? `test-${account.id}@local.invalid`
+        : account.login;
+      await client.query(
+        "INSERT INTO usuarios (id,nome,login,senha_hash,papel,loja_id,ativo,status,solicitado_em,aprovado_por,cargo_solicitado,justificativa_acesso,criado_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (id) DO UPDATE SET senha_hash=EXCLUDED.senha_hash,papel=EXCLUDED.papel,loja_id=EXCLUDED.loja_id,ativo=EXCLUDED.ativo,status=EXCLUDED.status,aprovado_por=EXCLUDED.aprovado_por,cargo_solicitado=EXCLUDED.cargo_solicitado,justificativa_acesso=EXCLUDED.justificativa_acesso",
+        [account.id, account.nome, persistedLogin, account.senha_hash, account.papel, account.loja_id, account.ativo !== false, account.status, account.solicitado_em || null, account.aprovado_por || null, account.cargo_solicitado || null, account.justificativa_acesso || null, account.criado_em || new Date().toISOString()]
+      );
+    }
+    for (const request of data.solicitacoes_acesso || []) {
+      await client.query(
+        "INSERT INTO solicitacoes_acesso (id,usuario_id,nome,email,cargo_solicitado,justificativa,status,analisado_por,analisado_em,criado_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,analisado_por=EXCLUDED.analisado_por,analisado_em=EXCLUDED.analisado_em",
+        [request.id, request.usuario_id, request.nome, request.email, request.cargo_solicitado, request.justificativa, request.status, request.analisado_por || null, request.analisado_em || null, request.criado_em || new Date().toISOString()]
+      );
+    }
+  }
 
   for (const store of data.lojas || []) {
     await client.query("INSERT INTO lojas (id,nome,cnpj,telefone,endereco,ativa) VALUES ($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,endereco=EXCLUDED.endereco,ativa=EXCLUDED.ativa", [store.id, store.nome || store.name, store.cnpj || null, store.telefone || null, JSON.stringify(store.endereco || {}), store.ativa !== false]);

@@ -40,7 +40,12 @@ const PAYMENT_LABELS = {
   boleto: "Boleto"
 };
 const BILL_STATUS = ["pendente", "pago"];
-const DELIVERY_STATUS = ["pendente", "entregue", "cancelada"];
+const DELIVERY_STATUS = ["pendente", "em_rota", "entregue", "cancelada"];
+const DEFAULT_DELIVERY_KANBAN_COLUMNS = [
+  { id: "delivery-col-pending", title: "Pendente / A Separar", slug: "pendente", order: 1 },
+  { id: "delivery-col-route", title: "Em Rota", slug: "em_rota", order: 2 },
+  { id: "delivery-col-delivered", title: "Entregue", slug: "entregue", order: 3 }
+];
 const PURCHASE_ORDER_STATUS = ["RASCUNHO", "PEDIDO_ENVIADO", "EM_TRANSITO", "RECEBIDO_TOTAL", "RECEBIDO_PARCIAL", "CANCELADO"];
 const PURCHASE_OPEN_STATUS = ["RASCUNHO", "PEDIDO_ENVIADO", "EM_TRANSITO", "RECEBIDO_PARCIAL"];
 const PURCHASE_INCOMING_STATUS = ["PEDIDO_ENVIADO", "EM_TRANSITO"];
@@ -438,7 +443,8 @@ function seedData() {
     sales: [],
     cashMovements: [],
     bills: [],
-    deliveryOrders: []
+    deliveryOrders: [],
+    kanban_entregas_colunas: structuredClone(DEFAULT_DELIVERY_KANBAN_COLUMNS)
   };
 }
 
@@ -526,6 +532,8 @@ function normalizeUsuario(user) {
     status,
     solicitado_em: source.solicitado_em || source.requestedAt || null,
     aprovado_por: source.aprovado_por || source.approvedBy || null,
+    cargo_solicitado: normalize(source.cargo_solicitado || source.cargoSolicitado),
+    justificativa_acesso: normalize(source.justificativa_acesso || source.justificativa),
     criado_em: criadoEm
   };
   return {
@@ -553,6 +561,8 @@ function usuarioRecord(user) {
     status: normalized.status,
     solicitado_em: normalized.solicitado_em,
     aprovado_por: normalized.aprovado_por,
+    cargo_solicitado: normalized.cargo_solicitado,
+    justificativa_acesso: normalized.justificativa_acesso,
     criado_em: normalized.criado_em
   };
 }
@@ -578,6 +588,8 @@ function usuarioPayload(usuario) {
     status: normalized.status,
     solicitado_em: normalized.solicitado_em,
     aprovado_por: normalized.aprovado_por,
+    cargo_solicitado: normalized.cargo_solicitado,
+    justificativa_acesso: normalized.justificativa_acesso,
     criado_em: normalized.criado_em,
     createdAt: normalized.criado_em
   };
@@ -730,6 +742,7 @@ function defaultCompanySettings(stores = []) {
     cnpj: "",
     inscricao_estadual: "",
     telefone_whatsapp: "",
+    bot_api_key: "",
     lojas: lojaSettings,
     proximo_numero_pedido: SALE_CODE_BASE + 1,
     mensagem_rodape_garantia: "Garantia conforme legislação vigente. Confira os produtos no ato da entrega.",
@@ -757,6 +770,7 @@ function normalizeCompanySettings(db, settings = {}) {
     cnpj: normalize(source.cnpj),
     inscricao_estadual: normalize(source.inscricao_estadual),
     telefone_whatsapp: normalize(source.telefone_whatsapp),
+    bot_api_key: normalize(source.bot_api_key),
     lojas: stores,
     proximo_numero_pedido: Math.max(SALE_CODE_BASE + 1, maxSaleCode(db) + 1, Number.isInteger(nextNumber) ? nextNumber : 0),
     mensagem_rodape_garantia: normalize(source.mensagem_rodape_garantia || defaults.mensagem_rodape_garantia),
@@ -817,6 +831,13 @@ function migrateData(db) {
   db.stockMovements = Array.isArray(db.stockMovements) ? db.stockMovements : [];
   db.movimentacoes_estoque = Array.isArray(db.movimentacoes_estoque) ? db.movimentacoes_estoque : [];
   db.sessoes_caixa = Array.isArray(db.sessoes_caixa) ? db.sessoes_caixa.map(normalizeCashSession) : [];
+  db.kanban_entregas_colunas = (Array.isArray(db.kanban_entregas_colunas) && db.kanban_entregas_colunas.length
+    ? db.kanban_entregas_colunas
+    : structuredClone(DEFAULT_DELIVERY_KANBAN_COLUMNS))
+    .map((column, index) => ({ id: String(column.id || id("delivery_col")), title: normalize(column.title) || "Nova etapa", slug: normalize(column.slug || column.status).toLowerCase().replace(/[\s-]+/g, "_"), order: Number(column.order ?? column.position ?? index + 1) }))
+    .filter((column) => column.slug)
+    .sort((a, b) => a.order - b.order)
+    .map((column, index) => ({ ...column, order: index + 1 }));
   const needsMigration = db.stock.some((row) => Object.prototype.hasOwnProperty.call(row, "storeId"));
   const legacyStock = new Map();
   if (needsMigration) {
@@ -1241,6 +1262,9 @@ function normalizeVendedor(seller, db = null) {
     storeId: lojaPadrao === "Ambas" ? null : lojaId,
     loja_padrao: lojaPadrao,
     telefone: normalize(seller.telefone || seller.phone),
+    bot_auth_code: normalize(seller.bot_auth_code),
+    bot_code_expires_at: seller.bot_code_expires_at || null,
+    whatsapp_phone: normalize(seller.whatsapp_phone),
     ativo: seller.ativo === undefined ? seller.active !== false : Boolean(seller.ativo),
     criado_em: seller.criado_em || seller.createdAt || nowIso()
   };
@@ -1771,6 +1795,36 @@ function reportData(db, user, query) {
   return { sales, cashMovements, stock };
 }
 
+function botApiKey(db) {
+  if (process.env.BOT_API_KEY) return process.env.BOT_API_KEY;
+  if (!db.configuracoes_empresa.bot_api_key) {
+    db.configuracoes_empresa.bot_api_key = crypto.randomBytes(24).toString("hex");
+  }
+  return db.configuracoes_empresa.bot_api_key;
+}
+
+function validateBotApiKey(db, req) {
+  const token = normalize(req.headers["x-bot-token"]);
+  if (!token || token !== botApiKey(db)) {
+    const error = new Error("Chave do bot ausente ou inválida.");
+    error.status = 401;
+    throw error;
+  }
+}
+
+function canonicalDeliveryStatus(value) {
+  const normalized = normalize(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s-]+/g, "_");
+  const aliases = {
+    pendente: "pendente",
+    a_separar: "pendente",
+    em_separacao: "pendente",
+    em_rota: "em_rota",
+    entregue: "entregue",
+    cancelada: "cancelada"
+  };
+  return aliases[normalized] || normalized;
+}
+
 async function api(db, req, res, url, body, user) {
   const method = req.method;
   const pathname = url.pathname;
@@ -1813,16 +1867,45 @@ async function api(db, req, res, url, body, user) {
     return { ok: true };
   }
 
+  if (pathname === "/api/auth/request-access" && method === "POST") {
+    const nome = normalize(body.nome || body.name);
+    const email = normalize(body.email).toLowerCase();
+    const cargo = normalize(body.cargo_solicitado || body.cargoSolicitado);
+    const justificativa = normalize(body.justificativa);
+    if (!nome || !validEmail(email)) throw badRequest("Informe nome completo e um e-mail válido.");
+    if (!cargo) throw badRequest("Informe o cargo solicitado.");
+    if (justificativa.length < 8) throw badRequest("Descreva brevemente por que você precisa de acesso.");
+    if (db.usuarios.some((item) => item.login === email)) throw badRequest("Já existe uma solicitação ou conta para este e-mail.");
+    const requestedAt = nowIso();
+    const account = usuarioRecord({
+      id: id("user"), nome, login: email,
+      // A senha temporária não é divulgada: o gestor define a credencial na aprovação.
+      senha_hash: passwordHash(crypto.randomBytes(24).toString("hex")),
+      papel: "PENDENTE", loja_id: "TODAS", ativo: false,
+      status: "PENDENTE_APROVACAO", solicitado_em: requestedAt,
+      cargo_solicitado: cargo, justificativa_acesso: justificativa, criado_em: requestedAt
+    });
+    db.usuarios.push(account);
+    db.solicitacoes_acesso = Array.isArray(db.solicitacoes_acesso) ? db.solicitacoes_acesso : [];
+    db.solicitacoes_acesso.push({
+      id: id("access"), usuario_id: account.id, nome, email,
+      cargo_solicitado: cargo, justificativa, status: "pending", criado_em: requestedAt
+    });
+    syncUsuarios(db);
+    return { ok: true, status: "pending" };
+  }
+
   if (["/api/login", "/api/auth/login"].includes(pathname) && method === "POST") {
     const username = normalize(body.username || body.login).toLowerCase();
     const password = String(body.password || "");
     const account = db.usuarios.find((item) => item.login === username);
-    if (!account || !verifyPassword(password, account.senha_hash)) {
+    if (!account) {
       throw badRequest("Usuário ou senha inválidos.");
     }
     const status = normalize(account.status || (account.ativo === false ? "INATIVO" : "ATIVO")).toUpperCase();
     if (status === "PENDENTE_APROVACAO") throw badRequest("Sua conta ainda está aguardando aprovação da gestão.");
     if (["INATIVO", "REJEITADO"].includes(status) || account.ativo === false) throw badRequest("Acesso suspenso. Entre em contato com o gestor.");
+    if (!verifyPassword(password, account.senha_hash)) throw badRequest("Usuário ou senha inválidos.");
     const token = crypto.randomBytes(32).toString("hex");
     db.sessions.push({ token, userId: account.id, createdAt: nowIso() });
     return { token, user: publicUser(account) };
@@ -1838,6 +1921,30 @@ async function api(db, req, res, url, body, user) {
       papelLabel: papelLabel(invite.papel),
       loja_id: invite.loja_id
     };
+  }
+
+  if (pathname === "/api/bot/auth" && method === "POST") {
+    validateBotApiKey(db, req);
+    const phone = normalize(body.phone).replace(/\D/g, "");
+    const code = normalize(body.token);
+    if (!/^\d{6}$/.test(code) || phone.length < 10) throw badRequest("Telefone ou código temporário inválido.");
+    const seller = db.vendedores.find((item) => item.bot_auth_code === code && item.bot_code_expires_at && new Date(item.bot_code_expires_at) > new Date());
+    if (!seller) throw badRequest("Código temporário inválido ou expirado.");
+    seller.whatsapp_phone = phone;
+    seller.whatsapp_linked_at = nowIso();
+    seller.bot_auth_code = "";
+    seller.bot_code_expires_at = null;
+    return { success: true, vendedor: seller.nome };
+  }
+  if (pathname === "/api/bot/estoque" && method === "GET") {
+    validateBotApiKey(db, req);
+    const term = normalize(url.searchParams.get("q")).toLowerCase();
+    const products = (db.products || []).filter((product) => !term || `${product.nome || product.name} ${product.sku}`.toLowerCase().includes(term));
+    return products.map((product) => {
+      const stock = getStockRow(db, product.id);
+      const locations = (db.lojas || []).map((loja) => ({ loja_id: loja.id, nome: loja.nome || loja.name, quantidade: Number(stock.showrooms?.[loja.id] || 0) }));
+      return { id: product.id, nome: product.nome || product.name, sku: product.sku, estoque_total: stockTotal(stock), deposito: Number(stock.saldo_deposito || 0), localizacoes: locations };
+    });
   }
 
   if (pathname === "/api/ativar-conta" && method === "POST") {
@@ -1876,6 +1983,56 @@ async function api(db, req, res, url, body, user) {
     const error = new Error("Login obrigatório.");
     error.status = 401;
     throw error;
+  }
+
+  if (pathname === "/api/integracoes/bot" && method === "GET") {
+    requireRole(user, ["gestor"]);
+    return { apiKey: botApiKey(db), vendedores: db.vendedores.filter((seller) => seller.whatsapp_phone).map((seller) => ({ id: seller.id, nome: seller.nome, whatsapp_phone: seller.whatsapp_phone, vinculado_em: seller.whatsapp_linked_at || seller.criado_em })) };
+  }
+  if (pathname === "/api/integracoes/bot/regenerate-token" && method === "POST") {
+    requireRole(user, ["gestor"]);
+    if (process.env.BOT_API_KEY) throw badRequest("A chave do bot é definida pelo ambiente e não pode ser regenerada pelo painel.");
+    db.configuracoes_empresa.bot_api_key = crypto.randomBytes(24).toString("hex");
+    return { apiKey: db.configuracoes_empresa.bot_api_key };
+  }
+  if (pathname.startsWith("/api/integracoes/bot/vendedores/") && method === "DELETE") {
+    requireRole(user, ["gestor"]);
+    const seller = db.vendedores.find((item) => item.id === pathname.split("/").pop());
+    if (!seller) throw notFound("Vendedor não encontrado.");
+    seller.whatsapp_phone = "";
+    seller.whatsapp_linked_at = null;
+    return { ok: true };
+  }
+
+  if (pathname === "/api/admin/access-requests" && method === "GET") {
+    requireRole(user, ["gestor"]);
+    const requests = Array.isArray(db.solicitacoes_acesso) ? db.solicitacoes_acesso : [];
+    return requests.filter((request) => request.status === "pending").map((request) => ({
+      ...request,
+      usuario: userPayload(db.usuarios.find((account) => account.id === request.usuario_id))
+    }));
+  }
+  if (/^\/api\/admin\/access-requests\/[^/]+\/(approve|reject)$/.test(pathname) && method === "POST") {
+    requireRole(user, ["gestor"]);
+    const [, requestId, decision] = pathname.match(/^\/api\/admin\/access-requests\/([^/]+)\/(approve|reject)$/) || [];
+    const request = (db.solicitacoes_acesso || []).find((item) => item.id === requestId && item.status === "pending");
+    if (!request) throw notFound("Solicitação pendente não encontrada.");
+    const account = db.usuarios.find((item) => item.id === request.usuario_id);
+    if (!account) throw notFound("Conta vinculada à solicitação não encontrada.");
+    if (decision === "reject") {
+      Object.assign(account, normalizeUsuario({ ...account, ativo: false, status: "REJEITADO", aprovado_por: user.id }));
+      request.status = "rejected";
+    } else {
+      const access = validateUserAccess(db, { papel: body.papel, loja_id: body.loja_id || body.storeId });
+      const password = String(body.senha || body.password || "");
+      if (password.length < 6) throw badRequest("Defina uma senha temporária de pelo menos 6 caracteres.");
+      Object.assign(account, normalizeUsuario({ ...account, ...access, senha_hash: passwordHash(password), ativo: true, status: "ATIVO", aprovado_por: user.id }));
+      request.status = "approved";
+    }
+    request.analisado_por = user.id;
+    request.analisado_em = nowIso();
+    syncUsuarios(db);
+    return { request, user: userPayload(account) };
   }
 
   if (pathname === "/api/me" && method === "GET") return { user: publicUser(user) };
@@ -2419,6 +2576,14 @@ async function api(db, req, res, url, body, user) {
         return stores.some((id) => sellerStoreMatches(db, seller, id));
       })
       .sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
+  }
+  if (pathname === "/api/vendedores/gerar-token-bot" && method === "POST") {
+    requireRole(user, ["gestor", "gerente_loja"]);
+    const seller = findActiveVendedor(db, normalize(body.vendedor_id || body.sellerId));
+    if (userPapel(user) === "GERENTE_LOJA" && !sellerStoreMatches(db, seller, user.loja_id)) throw forbidden("Este vendedor não pertence à sua loja.");
+    seller.bot_auth_code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+    seller.bot_code_expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    return { token: seller.bot_auth_code, expiresAt: seller.bot_code_expires_at, vendedor: seller.nome };
   }
   if (pathname === "/api/vendedores" && method === "POST") {
     requireRole(user, ["gestor", "gerente_loja"]);
@@ -3000,14 +3165,52 @@ async function api(db, req, res, url, body, user) {
       .filter((delivery) => allowedStoreIds(db, user).includes(saleStoreMap.get(delivery.saleId)))
       .sort((a, b) => `${a.scheduledDate}${a.deliveryPerson}`.localeCompare(`${b.scheduledDate}${b.deliveryPerson}`));
   }
+  if (pathname === "/api/entregas/kanban/columns" && method === "GET") {
+    requireRole(user, ["gestor", "gestor_financeiro", "gerente_loja"]);
+    return db.kanban_entregas_colunas.slice().sort((a, b) => a.order - b.order);
+  }
+  if (pathname === "/api/entregas/kanban/columns" && method === "POST") {
+    requireRole(user, ["gestor"]);
+    const title = normalize(body.title || body.titulo);
+    const baseSlug = normalize(body.slug || title).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    if (!title || !baseSlug) throw badRequest("Informe um título válido para a coluna.");
+    let slug = baseSlug;
+    let suffix = 2;
+    while (db.kanban_entregas_colunas.some((column) => column.slug === slug)) slug = `${baseSlug}_${suffix++}`;
+    const column = { id: id("delivery_col"), title, slug, order: db.kanban_entregas_colunas.length + 1 };
+    db.kanban_entregas_colunas.push(column);
+    Object.defineProperty(column, "__httpStatus", { value: 201, enumerable: false });
+    return column;
+  }
+  if (pathname === "/api/entregas/kanban/columns/reorder" && method === "PUT") {
+    requireRole(user, ["gestor"]);
+    const orderedIds = Array.isArray(body.columnIds) ? body.columnIds : Array.isArray(body.columns) ? body.columns : [];
+    if (orderedIds.length !== db.kanban_entregas_colunas.length || new Set(orderedIds).size !== orderedIds.length || orderedIds.some((columnId) => !db.kanban_entregas_colunas.some((column) => column.id === columnId))) throw badRequest("A ordenação das colunas é inválida.");
+    db.kanban_entregas_colunas.sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id));
+    db.kanban_entregas_colunas.forEach((column, index) => { column.order = index + 1; });
+    return db.kanban_entregas_colunas;
+  }
+  if (pathname.startsWith("/api/entregas/kanban/columns/") && method === "DELETE") {
+    requireRole(user, ["gestor"]);
+    const columnId = pathname.split("/").pop();
+    const column = db.kanban_entregas_colunas.find((item) => item.id === columnId);
+    if (!column) throw notFound("Coluna não encontrada.");
+    if ((db.deliveryOrders || []).some((delivery) => delivery.status === column.slug)) throw badRequest("Não é possível remover uma coluna que possui entregas.");
+    if (db.kanban_entregas_colunas.length === 1) throw badRequest("O Kanban precisa manter ao menos uma coluna.");
+    db.kanban_entregas_colunas = db.kanban_entregas_colunas.filter((item) => item.id !== columnId).map((item, index) => ({ ...item, order: index + 1 }));
+    return { ok: true };
+  }
   if (pathname.startsWith("/api/deliveries/") && method === "PUT") {
     requireRole(user, ["gestor", "gestor_financeiro", "gerente_loja"]);
     const delivery = db.deliveryOrders.find((item) => item.id === pathname.split("/").pop());
     if (!delivery) throw notFound();
     const sale = db.sales.find((item) => item.id === delivery.saleId);
     assertStoreAccess(db, user, sale.storeId);
-    if (!DELIVERY_STATUS.includes(body.status)) throw badRequest("Status de entrega inválido.");
-    delivery.status = body.status;
+    const requestedStatus = canonicalDeliveryStatus(body.status);
+    const dynamicStatuses = (db.kanban_entregas_colunas || []).map((column) => canonicalDeliveryStatus(column.slug || column.status));
+    const validStatuses = new Set([...DELIVERY_STATUS, "a_separar", ...dynamicStatuses]);
+    if (!validStatuses.has(requestedStatus)) throw badRequest("Status de entrega inválido.");
+    delivery.status = requestedStatus;
     delivery.updatedAt = nowIso();
     return delivery;
   }

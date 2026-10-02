@@ -1,0 +1,308 @@
+{
+  "meta": {
+    "createdAt": "2026-10-02T18:51:31.310Z",
+    "updatedAt": "2026-10-02T18:51:31.437Z"
+  },
+  "lojas": [
+    {
+      "id": "loja_1",
+      "nome": "Loja 1",
+      "cnpj": "",
+      "telefone": "",
+      "endereco": {
+        "logradouro": "Endereço da Loja 1",
+        "bairro": "",
+        "cidade": ""
+      },
+      "ativa": true,
+      "criado_em": "2026-10-02T18:51:31.310Z",
+      "name": "Loja 1",
+      "address": "Endereço da Loja 1",
+      "status": "ativo",
+      "active": true
+    },
+    {
+      "id": "loja_2",
+      "nome": "Loja 2",
+      "cnpj": "",
+      "telefone": "",
+      "endereco": {
+        "logradouro": "Endereço da Loja 2",
+        "bairro": "",
+        "cidade": ""
+      },
+      "ativa": true,
+      "criado_em": "2026-10-02T18:51:31.310Z",
+      "name": "Loja 2",
+      "address": "Endereço da Loja 2",
+      "status": "ativo",
+      "active": true
+    }
+  ],
+  "stores": [
+    {
+      "id": "loja_1",
+      "nome": "Loja 1",
+      "name": "Loja 1",
+      "cnpj": "",
+      "status": "ativo",
+      "address": "Endereço da Loja 1"
+    },
+    {
+      "id": "loja_2",
+      "nome": "Loja 2",
+      "name": "Loja 2",
+      "cnpj": "",
+      "status": "ativo",
+      "address": "Endereço da Loja 2"
+    }
+  ],
+  "usuarios": [
+    {
+      "id": "user_gestor",
+      "nome": "Gestor",
+      "login": "gestor",
+      "senha_hash": "5d39debe747613cc1ca1dc30881f42c5:f7c41739d4bea70cb3ef84ade64160e6162cb5cbfcb87512b3d2f922db168e0fb7af021f77d600d72f3c228b396c8d230bf6d8d4ec10df3715e463457a1487f1",
+      "papel": "ADMINISTRADOR",
+      "loja_id": "TODAS",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.309Z"
+    },
+    {
+      "id": "user_gerente_1",
+      "nome": "Gerente Loja 1",
+      "login": "gerente1",
+      "senha_hash": "ef8a059e5ef15d862853960a67076882:46d134c46e01fd8c854fe752b3e13789ee2591a21dfa09b1930a8e0ecd205a9f0439de94ba3238035b952d08f79494cc3b16255448173120bb8671166108dc9a",
+      "papel": "GERENTE_LOJA",
+      "loja_id": "loja_1",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.310Z"
+    },
+    {
+      "id": "user_gerente_2",
+      "nome": "Gerente Loja 2",
+      "login": "gerente2",
+      "senha_hash": "fa347fd4f6f74afb5c9eed73c8cfe46e:7d46e15952a92237c30aa61cfe5518fd02f3fc221100594993e3e35c03eba1829d5e2ebc3001c69647ea6aba1bfcff73e870aaaee8357f49e817d4ebdabf8a5a",
+      "papel": "GERENTE_LOJA",
+      "loja_id": "loja_2",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.310Z"
+    },
+    {
+      "id": "user_estoque",
+      "nome": "Gerente de Estoque",
+      "login": "estoque",
+      "senha_hash": "63426d7d5c46fee145bf82afce5cf0fc:a33c1ca1e246a48457caa7019a4d7228fbd839a4da04827c8fddb2795903a1b2366ab6bd24000b7059bb22c93937193bf16511e86fbad279cd6c3ef2bd7a4782",
+      "papel": "ESTOQUE",
+      "loja_id": "TODAS",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.310Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_gestor",
+      "nome": "Gestor",
+      "login": "gestor",
+      "senha_hash": "5d39debe747613cc1ca1dc30881f42c5:f7c41739d4bea70cb3ef84ade64160e6162cb5cbfcb87512b3d2f922db168e0fb7af021f77d600d72f3c228b396c8d230bf6d8d4ec10df3715e463457a1487f1",
+      "papel": "ADMINISTRADOR",
+      "loja_id": "TODAS",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.309Z",
+      "name": "Gestor",
+      "username": "gestor",
+      "passwordHash": "5d39debe747613cc1ca1dc30881f42c5:f7c41739d4bea70cb3ef84ade64160e6162cb5cbfcb87512b3d2f922db168e0fb7af021f77d600d72f3c228b396c8d230bf6d8d4ec10df3715e463457a1487f1",
+      "role": "gestor",
+      "storeId": null,
+      "active": true,
+      "createdAt": "2026-10-02T18:51:31.309Z"
+    },
+    {
+      "id": "user_gerente_1",
+      "nome": "Gerente Loja 1",
+      "login": "gerente1",
+      "senha_hash": "ef8a059e5ef15d862853960a67076882:46d134c46e01fd8c854fe752b3e13789ee2591a21dfa09b1930a8e0ecd205a9f0439de94ba3238035b952d08f79494cc3b16255448173120bb8671166108dc9a",
+      "papel": "GERENTE_LOJA",
+      "loja_id": "loja_1",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.310Z",
+      "name": "Gerente Loja 1",
+      "username": "gerente1",
+      "passwordHash": "ef8a059e5ef15d862853960a67076882:46d134c46e01fd8c854fe752b3e13789ee2591a21dfa09b1930a8e0ecd205a9f0439de94ba3238035b952d08f79494cc3b16255448173120bb8671166108dc9a",
+      "role": "gerente_loja",
+      "storeId": "loja_1",
+      "active": true,
+      "createdAt": "2026-10-02T18:51:31.310Z"
+    },
+    {
+      "id": "user_gerente_2",
+      "nome": "Gerente Loja 2",
+      "login": "gerente2",
+      "senha_hash": "fa347fd4f6f74afb5c9eed73c8cfe46e:7d46e15952a92237c30aa61cfe5518fd02f3fc221100594993e3e35c03eba1829d5e2ebc3001c69647ea6aba1bfcff73e870aaaee8357f49e817d4ebdabf8a5a",
+      "papel": "GERENTE_LOJA",
+      "loja_id": "loja_2",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.310Z",
+      "name": "Gerente Loja 2",
+      "username": "gerente2",
+      "passwordHash": "fa347fd4f6f74afb5c9eed73c8cfe46e:7d46e15952a92237c30aa61cfe5518fd02f3fc221100594993e3e35c03eba1829d5e2ebc3001c69647ea6aba1bfcff73e870aaaee8357f49e817d4ebdabf8a5a",
+      "role": "gerente_loja",
+      "storeId": "loja_2",
+      "active": true,
+      "createdAt": "2026-10-02T18:51:31.310Z"
+    },
+    {
+      "id": "user_estoque",
+      "nome": "Gerente de Estoque",
+      "login": "estoque",
+      "senha_hash": "63426d7d5c46fee145bf82afce5cf0fc:a33c1ca1e246a48457caa7019a4d7228fbd839a4da04827c8fddb2795903a1b2366ab6bd24000b7059bb22c93937193bf16511e86fbad279cd6c3ef2bd7a4782",
+      "papel": "ESTOQUE",
+      "loja_id": "TODAS",
+      "ativo": true,
+      "status": "ATIVO",
+      "solicitado_em": null,
+      "aprovado_por": null,
+      "cargo_solicitado": "",
+      "justificativa_acesso": "",
+      "criado_em": "2026-10-02T18:51:31.310Z",
+      "name": "Gerente de Estoque",
+      "username": "estoque",
+      "passwordHash": "63426d7d5c46fee145bf82afce5cf0fc:a33c1ca1e246a48457caa7019a4d7228fbd839a4da04827c8fddb2795903a1b2366ab6bd24000b7059bb22c93937193bf16511e86fbad279cd6c3ef2bd7a4782",
+      "role": "estoque",
+      "storeId": null,
+      "active": true,
+      "createdAt": "2026-10-02T18:51:31.310Z"
+    }
+  ],
+  "convites": [],
+  "sessions": [
+    {
+      "token": "848332cfbe93209ffe7c95e3f75066dc99b26af6c30e854d6d17002f933cbd93",
+      "userId": "user_gestor",
+      "createdAt": "2026-10-02T18:51:31.382Z"
+    }
+  ],
+  "fornecedores": [],
+  "ordens_compra": [],
+  "itens_ordem_compra": [],
+  "contas_a_pagar": [],
+  "vendedores": [
+    {
+      "id": "vend_1",
+      "nome": "Vendedora Loja 1",
+      "loja_padrao": "Loja 1",
+      "telefone": "(85) 90000-0001",
+      "ativo": true,
+      "criado_em": "2026-10-02T18:51:31.310Z",
+      "bot_auth_code": "",
+      "bot_code_expires_at": null,
+      "whatsapp_phone": "5598999999999",
+      "whatsapp_linked_at": "2026-10-02T18:51:31.430Z"
+    },
+    {
+      "id": "vend_2",
+      "nome": "Vendedor Loja 2",
+      "loja_padrao": "Loja 2",
+      "telefone": "(85) 90000-0002",
+      "ativo": true,
+      "criado_em": "2026-10-02T18:51:31.310Z"
+    },
+    {
+      "id": "vend_3",
+      "nome": "Vendedor Apoio",
+      "loja_padrao": "Ambas",
+      "telefone": "(85) 90000-0003",
+      "ativo": true,
+      "criado_em": "2026-10-02T18:51:31.310Z"
+    }
+  ],
+  "products": [],
+  "customers": [],
+  "stockMovements": [],
+  "movimentacoes_estoque": [],
+  "sessoes_caixa": [],
+  "configuracoes_empresa": {
+    "marca_principal": "Rede de Móveis e Colchões",
+    "razao_social": "",
+    "cnpj": "",
+    "inscricao_estadual": "",
+    "telefone_whatsapp": "",
+    "bot_api_key": "29b790bf333ed4713ca3a9306fd04a92793a7dde31d041db",
+    "lojas": {
+      "loja_1": {
+        "nome": "Loja 1",
+        "logradouro": "Endereço da Loja 1",
+        "bairro": "",
+        "cidade": ""
+      },
+      "loja_2": {
+        "nome": "Loja 2",
+        "logradouro": "Endereço da Loja 2",
+        "bairro": "",
+        "cidade": ""
+      }
+    },
+    "proximo_numero_pedido": 1001,
+    "mensagem_rodape_garantia": "Garantia conforme legislação vigente. Confira os produtos no ato da entrega.",
+    "exibir_assinatura_cliente": true
+  },
+  "sales": [],
+  "cashMovements": [],
+  "bills": [],
+  "deliveryOrders": [],
+  "kanban_entregas_colunas": [
+    {
+      "id": "delivery-col-pending",
+      "title": "Pendente / A Separar",
+      "slug": "pendente",
+      "order": 1
+    },
+    {
+      "id": "delivery-col-route",
+      "title": "Em Rota",
+      "slug": "em_rota",
+      "order": 2
+    },
+    {
+      "id": "delivery-col-delivered",
+      "title": "Entregue",
+      "slug": "entregue",
+      "order": 3
+    }
+  ]
+}

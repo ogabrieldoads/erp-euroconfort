@@ -22,7 +22,8 @@ function createApiRuntime({ dbPath } = {}) {
         // Injeção de dbPath é exclusiva de testes: mantém sua cópia temporária
         // observável, sem transformar o JSON padrão em fonte de verdade no modo PG.
         if (postgres && dbPath) store.save(postgres.lastData);
-        res.status(200).json(result);
+        const status = result && typeof result === "object" && !Array.isArray(result) && result.__httpStatus ? result.__httpStatus : 200;
+        res.status(status).json(result);
       } catch (error) {
         if (error.status) return res.status(error.status).json({ error: error.message || "Erro interno." });
         return next(error);

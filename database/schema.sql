@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ATIVO';
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS solicitado_em TIMESTAMPTZ;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS aprovado_por VARCHAR;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo_solicitado TEXT;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS justificativa_acesso TEXT;
 UPDATE usuarios SET status = CASE WHEN ativo THEN 'ATIVO' ELSE 'INATIVO' END WHERE status IS NULL OR status NOT IN ('PENDENTE_APROVACAO', 'ATIVO', 'INATIVO', 'REJEITADO');
 ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_papel_check;
 ALTER TABLE usuarios ADD CONSTRAINT usuarios_papel_check CHECK (papel IN ('ADMINISTRADOR', 'GESTOR_FINANCEIRO', 'GERENTE_LOJA', 'OPERADOR_CAIXA', 'ESTOQUE', 'PENDENTE'));
@@ -43,6 +45,21 @@ ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_status_check;
 ALTER TABLE usuarios ADD CONSTRAINT usuarios_status_check CHECK (status IN ('PENDENTE_APROVACAO', 'ATIVO', 'INATIVO', 'REJEITADO'));
 ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_aprovado_por_fkey;
 ALTER TABLE usuarios ADD CONSTRAINT usuarios_aprovado_por_fkey FOREIGN KEY (aprovado_por) REFERENCES usuarios(id);
+
+CREATE TABLE IF NOT EXISTS solicitacoes_acesso (
+  id VARCHAR PRIMARY KEY,
+  usuario_id VARCHAR NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE RESTRICT,
+  nome TEXT NOT NULL,
+  email TEXT NOT NULL,
+  cargo_solicitado TEXT NOT NULL,
+  justificativa TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  analisado_por VARCHAR REFERENCES usuarios(id) ON DELETE RESTRICT,
+  analisado_em TIMESTAMPTZ,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_acesso_status_criado ON solicitacoes_acesso(status, criado_em);
 
 CREATE TABLE IF NOT EXISTS produtos (
   id VARCHAR PRIMARY KEY,
@@ -190,6 +207,10 @@ CREATE TABLE IF NOT EXISTS vendedores (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS bot_auth_code VARCHAR(6);
+ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS bot_code_expires_at TIMESTAMPTZ;
+ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS whatsapp_phone TEXT;
+
 CREATE TABLE IF NOT EXISTS entregas (
   id VARCHAR PRIMARY KEY,
   venda_id VARCHAR NOT NULL REFERENCES vendas(id) ON DELETE RESTRICT,
@@ -201,6 +222,18 @@ CREATE TABLE IF NOT EXISTS entregas (
   data_agendada DATE,
   assinado_por TEXT,
   comprovante_url TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Etapas são configuráveis pelo Kanban; instalações antigas não devem manter
+-- uma restrição estática de status.
+ALTER TABLE entregas DROP CONSTRAINT IF EXISTS entregas_status_check;
+
+CREATE TABLE IF NOT EXISTS entregas_kanban_colunas (
+  id VARCHAR PRIMARY KEY,
+  titulo TEXT NOT NULL,
+  slug VARCHAR NOT NULL UNIQUE,
+  posicao INTEGER NOT NULL CHECK (posicao > 0),
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
