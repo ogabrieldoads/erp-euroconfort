@@ -1985,15 +1985,16 @@ async function api(db, req, res, url, body, user) {
     throw error;
   }
 
-  if (pathname === "/api/integracoes/bot" && method === "GET") {
+  if (["/api/integracoes/bot", "/api/bot/token"].includes(pathname) && method === "GET") {
     requireRole(user, ["gestor"]);
-    return { apiKey: botApiKey(db), vendedores: db.vendedores.filter((seller) => seller.whatsapp_phone).map((seller) => ({ id: seller.id, nome: seller.nome, whatsapp_phone: seller.whatsapp_phone, vinculado_em: seller.whatsapp_linked_at || seller.criado_em })) };
+    const token = botApiKey(db);
+    return { success: true, token, apiKey: token, vendedores: db.vendedores.filter((seller) => seller.whatsapp_phone).map((seller) => ({ id: seller.id, nome: seller.nome, whatsapp_phone: seller.whatsapp_phone, vinculado_em: seller.whatsapp_linked_at || seller.criado_em })) };
   }
-  if (pathname === "/api/integracoes/bot/regenerate-token" && method === "POST") {
+  if (["/api/integracoes/bot/regenerate-token", "/api/bot/regenerate-token", "/api/integracoes/regenerate-token"].includes(pathname) && method === "POST") {
     requireRole(user, ["gestor"]);
     if (process.env.BOT_API_KEY) throw badRequest("A chave do bot é definida pelo ambiente e não pode ser regenerada pelo painel.");
     db.configuracoes_empresa.bot_api_key = crypto.randomBytes(24).toString("hex");
-    return { apiKey: db.configuracoes_empresa.bot_api_key };
+    return { success: true, token: db.configuracoes_empresa.bot_api_key, apiKey: db.configuracoes_empresa.bot_api_key };
   }
   if (pathname.startsWith("/api/integracoes/bot/vendedores/") && method === "DELETE") {
     requireRole(user, ["gestor"]);

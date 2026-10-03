@@ -305,7 +305,7 @@ async function loadData() {
   state.data.showroomMovements = await safeLoad("/api/showroom/movements", []);
   state.data.fornecedores = await safeLoad("/api/fornecedores", []);
   state.data.vendedores = await safeLoad("/api/vendedores", []);
-  state.data.botIntegration = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/integracoes/bot", null) : null;
+  state.data.botIntegration = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/bot/token", null) : null;
   state.data.lojas = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/lojas", state.bootstrap.lojas || []) : state.bootstrap.lojas || [];
   state.data.users = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/users", []) : [];
   state.data.accessRequests = currentPapel() === "ADMINISTRADOR" ? await safeLoad("/api/admin/access-requests", []) : [];
@@ -2891,7 +2891,7 @@ function renderIntegrations() {
     <section class="panel"><h2>Documentação rápida dos endpoints</h2><div class="integration-endpoints"><article><code>POST /api/bot/auth</code><p>Vincula um WhatsApp com telefone e código temporário de seis dígitos.</p></article><article><code>GET /api/bot/estoque?q={termo}</code><p>Consulta catálogo, saldo total, depósito e disponibilidade por unidade.</p></article></div></section>
     <section class="panel"><h2>WhatsApp dos Vendedores Vinculados</h2><div class="split-table"><table><thead><tr><th>Vendedor</th><th>WhatsApp autorizado</th><th>Vinculado em</th><th></th></tr></thead><tbody>${integration.vendedores.map((seller) => `<tr><td>${esc(seller.nome)}</td><td>${esc(seller.whatsapp_phone)}</td><td>${esc(formatDateTime(seller.vinculado_em))}</td><td><button class="small danger" data-unlink-bot-seller="${esc(seller.id)}" type="button">Desvincular</button></td></tr>`).join("") || emptyRow(4)}</tbody></table></div></section></section>`);
   document.querySelector("#copy-bot-key")?.addEventListener("click", async () => { await navigator.clipboard.writeText(integration.apiKey); setMessage("Chave copiada."); renderIntegrations(); });
-  document.querySelector("#regenerate-bot-key")?.addEventListener("click", async () => { if (!window.confirm("Regenerar a chave desconectará bots que usam a chave atual.")) return; try { await api("/api/integracoes/bot/regenerate-token", { method: "POST" }); state.data.botIntegration = await api("/api/integracoes/bot"); setMessage("Chave regenerada."); } catch (error) { setMessage(error.message, true); } renderIntegrations(); });
+  document.querySelector("#regenerate-bot-key")?.addEventListener("click", async () => { if (!window.confirm("Regenerar a chave desconectará bots que usam a chave atual.")) return; try { await api("/api/bot/regenerate-token", { method: "POST" }); state.data.botIntegration = await api("/api/bot/token"); setMessage("Chave regenerada."); } catch (error) { setMessage(error.message, true); } renderIntegrations(); });
   document.querySelectorAll("[data-unlink-bot-seller]").forEach((button) => button.addEventListener("click", async () => { try { await api(`/api/integracoes/bot/vendedores/${encodeURIComponent(button.dataset.unlinkBotSeller)}`, { method: "DELETE" }); state.data.botIntegration = await api("/api/integracoes/bot"); setMessage("WhatsApp desvinculado."); } catch (error) { setMessage(error.message, true); } renderIntegrations(); }));
 }
 
