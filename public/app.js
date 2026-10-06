@@ -2884,15 +2884,130 @@ function renderReports() {
   document.querySelector("#export-csv").addEventListener("click", exportReportsCsv);
 }
 
+let botWhatsAppStatusTimer = null;
+let botWhatsAppQrTimer = null;
+let botWhatsAppCountdownTimer = null;
+let botWhatsAppConnectionVersion = 0;
+let botWhatsAppSecondsRemaining = 20;
+
+function stopBotWhatsAppPolling() {
+  if (botWhatsAppStatusTimer) clearInterval(botWhatsAppStatusTimer);
+  if (botWhatsAppQrTimer) clearInterval(botWhatsAppQrTimer);
+  if (botWhatsAppCountdownTimer) clearInterval(botWhatsAppCountdownTimer);
+  botWhatsAppStatusTimer = null;
+  botWhatsAppQrTimer = null;
+  botWhatsAppCountdownTimer = null;
+}
+
+function botWhatsAppConnectionMarkup() {
+  return `<section class="panel whatsapp-connection-card"><div class="whatsapp-connection-header"><div><span class="integration-eyebrow">WHATSAPP BUSINESS</span><h2>Conexão do Bot</h2><p class="muted">Gerencie a instância euroconfort-bot da Evolution API.</p></div><div id="whatsapp-connection-status"></div></div><div id="whatsapp-connection-content" class="whatsapp-connection-content"><div class="whatsapp-loading"><span class="whatsapp-spinner"></span>Verificando conexão do WhatsApp...</div></div></section>`;
+}
+
+function updateBotWhatsAppCountdown() {
+  const label = document.querySelector("#whatsapp-qr-countdown");
+  const progress = document.querySelector("#whatsapp-qr-progress");
+  if (label) label.textContent = `Atualizando QR Code em ${botWhatsAppSecondsRemaining}s...`;
+  if (progress) progress.style.width = `${Math.max(0, (botWhatsAppSecondsRemaining / 20) * 100)}%`;
+}
+
+function renderBotWhatsAppConnected(content) {
+  content.innerHTML = `<div class="whatsapp-connected-state"><div class="whatsapp-connected-icon">✓</div><div class="whatsapp-connected-copy"><span class="whatsapp-badge whatsapp-badge-success"><i></i>WhatsApp Conectado e Operacional</span><h3>O bot está pronto para atender.</h3><p>Esta instância está autenticada e apta para receber mensagens.</p></div><button id="btn-whatsapp-logout" class="small danger" type="button">Desconectar WhatsApp</button></div>`;
+  document.querySelector("#btn-whatsapp-logout")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    try {
+      button.disabled = true;
+      button.textContent = "Desconectando...";
+      await api("/api/bot/logout", { method: "POST" });
+      setMessage("WhatsApp desconectado.");
+      await initializeBotWhatsAppConnection();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Desconectar WhatsApp";
+      setMessage(error.message, true);
+    }
+  });
+}
+
+function renderBotWhatsAppQrCode(content, qrCode) {
+  const image = qrCode.base64
+    ? `<img id="whatsapp-qr-image" src="${esc(qrCode.base64)}" alt="QR Code para conectar o WhatsApp" />`
+    : `<p class="whatsapp-qr-unavailable">QR Code ainda não disponível.</p>`;
+  content.innerHTML = `<div class="whatsapp-disconnected-state"><div class="whatsapp-qr-card"><span class="whatsapp-badge whatsapp-badge-warning"><i></i>WhatsApp aguardando conexão</span><h3>Conecte o WhatsApp Business</h3><div class="whatsapp-qr-box">${image}</div><p class="whatsapp-qr-instructions">Abra o WhatsApp Business → Aparelhos conectados → Conectar um aparelho.</p><div class="whatsapp-qr-validity"><div class="whatsapp-qr-progress-track"><div id="whatsapp-qr-progress" class="whatsapp-qr-progress"></div></div><small id="whatsapp-qr-countdown">Atualizando QR Code em 20s...</small></div></div></div>`;
+  updateBotWhatsAppCountdown();
+}
+
+async function refreshBotWhatsAppQrCode() {
+  const version = botWhatsAppConnectionVersion;
+  const content = document.querySelector("#whatsapp-connection-content");
+  if (!content) return stopBotWhatsAppPolling();
+  try {
+    const qrCode = await api(`/api/bot/qrcode?t=${Date.now()}`);
+    if (version !== botWhatsAppConnectionVersion) return;
+    const image = document.querySelector("#whatsapp-qr-image");
+    if (image && qrCode.base64) image.src = qrCode.base64;
+    else renderBotWhatsAppQrCode(content, qrCode);
+    botWhatsAppSecondsRemaining = 20;
+    updateBotWhatsAppCountdown();
+  } catch (error) {
+    console.error("Falha ao atualizar QR Code:", error);
+  }
+}
+
+async function checkBotWhatsAppStatus() {
+  const version = botWhatsAppConnectionVersion;
+  const statusElement = document.querySelector("#whatsapp-connection-status");
+  const content = document.querySelector("#whatsapp-connection-content");
+  if (!statusElement || !content) return stopBotWhatsAppPolling();
+  try {
+    const status = await api(`/api/bot/status?t=${Date.now()}`);
+    if (version !== botWhatsAppConnectionVersion) return;
+    if (status.state === "open") {
+      stopBotWhatsAppPolling();
+      statusElement.innerHTML = `<span class="whatsapp-top-status whatsapp-top-status-online"><i></i>Online</span>`;
+      renderBotWhatsAppConnected(content);
+      return;
+    }
+    statusElement.innerHTML = `<span class="whatsapp-top-status whatsapp-top-status-offline"><i></i>Aguardando conexão</span>`;
+  } catch (error) {
+    console.error("Falha ao verificar status do WhatsApp:", error);
+  }
+}
+
+function startBotWhatsAppTimers() {
+  stopBotWhatsAppPolling();
+  botWhatsAppStatusTimer = setInterval(checkBotWhatsAppStatus, 5000);
+  botWhatsAppQrTimer = setInterval(refreshBotWhatsAppQrCode, 20000);
+  botWhatsAppCountdownTimer = setInterval(() => {
+    botWhatsAppSecondsRemaining = Math.max(0, botWhatsAppSecondsRemaining - 1);
+    updateBotWhatsAppCountdown();
+  }, 1000);
+}
+
+async function initializeBotWhatsAppConnection() {
+  stopBotWhatsAppPolling();
+  botWhatsAppConnectionVersion += 1;
+  botWhatsAppSecondsRemaining = 20;
+  const content = document.querySelector("#whatsapp-connection-content");
+  if (!content) return;
+  await checkBotWhatsAppStatus();
+  const statusElement = document.querySelector("#whatsapp-connection-status");
+  if (statusElement && !statusElement.textContent.includes("Online")) {
+    await refreshBotWhatsAppQrCode();
+    startBotWhatsAppTimers();
+  }
+}
+
 function renderIntegrations() {
   const integration = state.data.botIntegration || { apiKey: "", vendedores: [] };
   renderShell(`<section class="page"><div class="page-header"><div><h1>Integrações</h1><p class="muted">Conecte o catálogo e a equipe comercial ao seu chatbot.</p></div></div>
     <section class="panel"><h2>Chave de Acesso do Bot (API Key)</h2><p class="muted">Envie esta chave no cabeçalho <code>x-bot-token</code>. Trate-a como uma senha.</p><div class="integration-key"><code>${esc(integration.apiKey || "Não disponível")}</code><button class="small secondary" id="copy-bot-key" type="button">Copiar</button><button class="small" id="regenerate-bot-key" type="button">Regenerar Token</button></div></section>
     <section class="panel"><h2>Documentação rápida dos endpoints</h2><div class="integration-endpoints"><article><code>POST /api/bot/auth</code><p>Vincula um WhatsApp com telefone e código temporário de seis dígitos.</p></article><article><code>GET /api/bot/estoque?q={termo}</code><p>Consulta catálogo, saldo total, depósito e disponibilidade por unidade.</p></article></div></section>
+    ${botWhatsAppConnectionMarkup()}
     <section class="panel"><h2>WhatsApp dos Vendedores Vinculados</h2><div class="split-table"><table><thead><tr><th>Vendedor</th><th>WhatsApp autorizado</th><th>Vinculado em</th><th></th></tr></thead><tbody>${integration.vendedores.map((seller) => `<tr><td>${esc(seller.nome)}</td><td>${esc(seller.whatsapp_phone)}</td><td>${esc(formatDateTime(seller.vinculado_em))}</td><td><button class="small danger" data-unlink-bot-seller="${esc(seller.id)}" type="button">Desvincular</button></td></tr>`).join("") || emptyRow(4)}</tbody></table></div></section></section>`);
   document.querySelector("#copy-bot-key")?.addEventListener("click", async () => { await navigator.clipboard.writeText(integration.apiKey); setMessage("Chave copiada."); renderIntegrations(); });
   document.querySelector("#regenerate-bot-key")?.addEventListener("click", async () => { if (!window.confirm("Regenerar a chave desconectará bots que usam a chave atual.")) return; try { await api("/api/bot/regenerate-token", { method: "POST" }); state.data.botIntegration = await api("/api/bot/token"); setMessage("Chave regenerada."); } catch (error) { setMessage(error.message, true); } renderIntegrations(); });
   document.querySelectorAll("[data-unlink-bot-seller]").forEach((button) => button.addEventListener("click", async () => { try { await api(`/api/integracoes/bot/vendedores/${encodeURIComponent(button.dataset.unlinkBotSeller)}`, { method: "DELETE" }); state.data.botIntegration = await api("/api/integracoes/bot"); setMessage("WhatsApp desvinculado."); } catch (error) { setMessage(error.message, true); } renderIntegrations(); }));
+  initializeBotWhatsAppConnection();
 }
 
 function settingTabButton(id, label) {
