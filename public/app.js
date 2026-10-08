@@ -1733,6 +1733,86 @@ function renderCustomers() {
   });
 }
 
+let sellerBotTokenTimer = null;
+let sellerBotTokenKeyHandler = null;
+
+function closeSellerBotTokenModal() {
+  if (sellerBotTokenTimer) clearInterval(sellerBotTokenTimer);
+  sellerBotTokenTimer = null;
+  if (sellerBotTokenKeyHandler) document.removeEventListener("keydown", sellerBotTokenKeyHandler);
+  sellerBotTokenKeyHandler = null;
+  document.querySelector("#seller-bot-token-modal")?.remove();
+}
+
+function showSellerBotTokenModal({ token, expiresAt, vendedor }) {
+  closeSellerBotTokenModal();
+  const expiresAtMs = new Date(expiresAt).getTime();
+  const modal = document.createElement("div");
+  modal.id = "seller-bot-token-modal";
+  modal.className = "modal-backdrop";
+  modal.dataset.closeSellerBotToken = "true";
+  modal.innerHTML = `
+    <section class="modal-card seller-bot-token-modal" role="dialog" aria-modal="true" aria-labelledby="seller-bot-token-title">
+      <div class="modal-header">
+        <div>
+          <span class="integration-eyebrow">EUROCONFORT IA</span>
+          <h2 id="seller-bot-token-title">Código de Ativação do WhatsApp</h2>
+          <p>${esc(vendedor)}</p>
+        </div>
+        <button class="secondary icon-action" type="button" data-close-seller-bot-token aria-label="Fechar">×</button>
+      </div>
+      <div class="seller-bot-token-content">
+        <p class="muted">O vendedor deve enviar exatamente este código na conversa do WhatsApp do Euroconfort IA.</p>
+        <code class="seller-bot-token-code">${esc(token)}</code>
+        <button class="small secondary" type="button" data-copy-seller-bot-token>Copiar código</button>
+        <p class="seller-bot-token-expiry" id="seller-bot-token-expiry" aria-live="polite"></p>
+      </div>
+      <div class="toolbar modal-actions">
+        <button class="secondary" type="button" data-close-seller-bot-token>Fechar</button>
+      </div>
+    </section>
+  `;
+  document.body.appendChild(modal);
+
+  const expiry = document.querySelector("#seller-bot-token-expiry");
+  const updateExpiry = () => {
+    const remaining = Math.max(0, expiresAtMs - Date.now());
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    expiry.textContent = remaining > 0
+      ? `Expira em ${minutes}:${String(seconds).padStart(2, "0")}.`
+      : "Código expirado. Gere um novo código para continuar.";
+    if (remaining <= 0) {
+      clearInterval(sellerBotTokenTimer);
+      sellerBotTokenTimer = null;
+    }
+  };
+  updateExpiry();
+  sellerBotTokenTimer = setInterval(updateExpiry, 1000);
+
+  document.querySelector("[data-copy-seller-bot-token]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    try {
+      await navigator.clipboard.writeText(token);
+      button.textContent = "Código copiado!";
+      button.classList.add("is-copied");
+      setTimeout(() => {
+        button.textContent = "Copiar código";
+        button.classList.remove("is-copied");
+      }, 1800);
+    } catch (error) {
+      setMessage("Não foi possível copiar o código. Copie-o manualmente.", true);
+    }
+  });
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal || event.target.closest("[data-close-seller-bot-token]")) closeSellerBotTokenModal();
+  });
+  sellerBotTokenKeyHandler = (event) => {
+    if (event.key === "Escape") closeSellerBotTokenModal();
+  };
+  document.addEventListener("keydown", sellerBotTokenKeyHandler);
+}
+
 function renderVendedores() {
   renderShell(`
     <section class="page">
@@ -1758,12 +1838,12 @@ function renderVendedores() {
           <table><thead><tr><th>Nome</th><th>Loja padrão</th><th>Telefone</th><th>Criado em</th><th>Status</th><th></th></tr></thead><tbody>
             ${state.data.vendedores.map((seller) => `
               <tr>
-                <td><strong>${esc(seller.nome)}</strong></td>
+                <td><strong>${esc(seller.nome)}</strong>${seller.whatsapp_phone ? '<span class="seller-whatsapp-linked">WhatsApp vinculado</span>' : ""}</td>
                 <td>${esc(seller.loja_padrao)}</td>
                 <td>${esc(seller.telefone || "-")}</td>
                 <td>${esc(String(seller.criado_em || "").slice(0, 10))}</td>
                 <td>${seller.ativo === false ? '<span class="status danger">Inativo</span>' : '<span class="status ok">Ativo</span>'}</td>
-                <td><div class="row-actions"><button class="small secondary" data-edit-seller="${seller.id}" type="button">Editar</button><button class="small secondary" data-toggle-seller="${seller.id}" type="button">${seller.ativo === false ? "Ativar" : "Inativar"}</button></div></td>
+                <td><div class="row-actions"><button class="small secondary" data-edit-seller="${seller.id}" type="button">Editar</button><button class="small secondary" data-seller-bot-token="${seller.id}" type="button">Código Bot</button><button class="small secondary" data-toggle-seller="${seller.id}" type="button">${seller.ativo === false ? "Ativar" : "Inativar"}</button></div></td>
               </tr>
             `).join("") || emptyRow(6)}
           </tbody></table>
@@ -1808,6 +1888,27 @@ function renderVendedores() {
       await loadData();
       setMessage("Vendedor atualizado.");
       renderVendedores();
+    });
+  });
+  document.querySelectorAll("[data-seller-bot-token]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const seller = state.data.vendedores.find((item) => item.id === button.dataset.sellerBotToken);
+      if (!seller) return;
+      const originalText = button.textContent;
+      try {
+        button.disabled = true;
+        button.textContent = "Gerando...";
+        const result = await api("/api/vendedores/gerar-token-bot", {
+          method: "POST",
+          body: JSON.stringify({ vendedor_id: seller.id })
+        });
+        showSellerBotTokenModal(result);
+      } catch (error) {
+        setMessage(error.message, true);
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
     });
   });
 }
