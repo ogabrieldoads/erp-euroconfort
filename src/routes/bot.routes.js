@@ -27,9 +27,9 @@ async function requestWithFetch(method, url, config) {
 function getEvolutionConfig() {
   loadEnvFile();
   return {
-    evolutionUrl: (process.env.EVOLUTION_URL || "http://127.0.0.1:8080").replace(/\/$/, ""),
-    evolutionApiKey: process.env.EVOLUTION_API_KEY,
-    instanceName: process.env.INSTANCE_NAME || "euroconfort-bot"
+    evolutionUrl: (process.env.EVOLUTION_URL || process.env.EVOLUTION_API_URL || "http://evolution_api:8080").replace(/\/$/, ""),
+    evolutionApiKey: process.env.EVOLUTION_KEY || process.env.EVOLUTION_API_KEY || "",
+    instanceName: process.env.EVOLUTION_INSTANCE || "euroconfort-bot"
   };
 }
 

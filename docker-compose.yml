@@ -1,0 +1,24 @@
+services:
+  erp-app:
+    build:
+      context: .
+    image: erp-erp-app
+    container_name: erp-app
+    env_file:
+      - .env
+    ports:
+      - "3005:3000"
+    restart: unless-stopped
+    networks:
+      - erp-network
+      - evolution-net
+
+networks:
+  # Rede já existente do ERP. É externa para preservar a topologia atual.
+  erp-network:
+    external: true
+    name: erp_erp-network
+  # Rede já existente da Evolution API, que permite resolver evolution_api.
+  evolution-net:
+    external: true
+    name: evolution-api_default
