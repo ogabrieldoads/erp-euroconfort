@@ -2601,6 +2601,18 @@ tbody tr:hover {
 .delivery-filters { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, 260px); gap: 12px; margin-bottom: 20px; }
 .delivery-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
 .delivery-filters input, .delivery-filters select { width: 100%; }
+.stock-product-picker { position: relative; display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.stock-product-search-wrap { position: relative; display: block; }
+.stock-product-search-wrap input { width: 100%; padding-left: 38px; }
+.stock-product-search-icon { position: absolute; z-index: 1; top: 50%; left: 14px; width: 13px; height: 13px; border: 2px solid var(--muted); border-radius: 50%; transform: translateY(-58%); pointer-events: none; }
+.stock-product-search-icon::after { position: absolute; right: -6px; bottom: -4px; width: 7px; height: 2px; border-radius: 999px; background: var(--muted); content: ""; transform: rotate(45deg); }
+.stock-product-results { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; left: 0; max-height: 196px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 12px 28px rgba(15, 23, 42, .16); }
+.stock-product-result { display: grid; width: 100%; min-height: 48px; gap: 2px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 9px 12px; color: var(--text); background: transparent; box-shadow: none; text-align: left; }
+.stock-product-result:last-child { border-bottom: 0; }
+.stock-product-result:hover, .stock-product-result:focus { color: var(--text); background: var(--accent-soft); transform: none; }
+.stock-product-result strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.stock-product-result span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.stock-product-empty { margin: 0; padding: 14px 12px; color: var(--muted); font-size: 13px; }
 .deliveries-table-view, .deliveries-kanban-view { display: none; }
 .deliveries-table-view.is-active, .deliveries-kanban-view.is-active { display: block; }
 .deliveries-kanban-view.is-active { display: grid; }

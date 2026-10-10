@@ -348,6 +348,58 @@ function productsOptions(selected = "") {
     .join("");
 }
 
+function stockEntryProductPicker() {
+  return `<label class="stock-product-picker" for="stock-entry-product-search">Produto<input id="stock-entry-product-id" name="productId" type="hidden"><span class="stock-product-search-wrap"><span class="stock-product-search-icon" aria-hidden="true"></span><input id="stock-entry-product-search" type="search" autocomplete="off" placeholder="Buscar produto ou SKU" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="stock-entry-product-results"><span id="stock-entry-product-results" class="stock-product-results" role="listbox" hidden></span></span></label>`;
+}
+
+let stockEntryPickerOutsideClick = null;
+
+function bindStockEntryProductPicker(entry) {
+  const picker = entry.querySelector(".stock-product-picker");
+  const input = entry.querySelector("#stock-entry-product-search");
+  const hidden = entry.querySelector("#stock-entry-product-id");
+  const results = entry.querySelector("#stock-entry-product-results");
+  if (!picker || !input || !hidden || !results) return;
+  if (stockEntryPickerOutsideClick) document.removeEventListener("click", stockEntryPickerOutsideClick);
+
+  const normalized = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const labelFor = (product) => `${product.name} - ${product.sku}`;
+  const productTerms = (product) => normalized([product.name, product.sku, product.category, product.brandModel].join(" "));
+  const close = () => {
+    results.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  };
+  const renderResults = () => {
+    const query = normalized(input.value);
+    const activeProducts = state.data.products.filter((product) => product.active !== false);
+    const startsWith = activeProducts.filter((product) => !query || [product.name, product.sku, product.category].some((value) => normalized(value).startsWith(query)));
+    const matches = startsWith.length || !query ? startsWith : activeProducts.filter((product) => productTerms(product).includes(query));
+    results.innerHTML = matches.map((product) => `<button type="button" class="stock-product-result" role="option" data-stock-entry-product="${esc(product.id)}"><strong>${esc(product.name)}</strong><span>${esc(product.sku)}${product.category ? ` · ${esc(product.category)}` : ""}</span></button>`).join("") || `<p class="stock-product-empty">Nenhum produto encontrado.</p>`;
+    results.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    results.querySelectorAll("[data-stock-entry-product]").forEach((button) => button.addEventListener("click", () => {
+      const product = state.data.products.find((item) => item.id === button.dataset.stockEntryProduct);
+      if (!product) return;
+      hidden.value = product.id;
+      input.value = labelFor(product);
+      close();
+    }));
+  };
+
+  input.addEventListener("focus", renderResults);
+  input.addEventListener("input", () => {
+    hidden.value = "";
+    renderResults();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") close();
+  });
+  stockEntryPickerOutsideClick = (event) => {
+    if (!picker.contains(event.target)) close();
+  };
+  document.addEventListener("click", stockEntryPickerOutsideClick);
+}
+
 function suppliersOptions(selected = "") {
   const activeSuppliers = state.data.fornecedores.filter((supplier) => supplier.ativo !== false);
   return `<option value="">Selecione um fornecedor</option>${activeSuppliers
@@ -2239,7 +2291,7 @@ function renderStock() {
           <h2>Entrada no depósito central</h2>
           <form id="stock-entry-form" class="form-grid">
             <div class="grid-3">
-              <label>Produto <select name="productId" required>${productsOptions()}</select></label>
+              ${stockEntryProductPicker()}
               <label>Quantidade <input name="quantity" type="number" min="1" required></label>
               <label>Observação <input name="reason" value="Entrada de mercadoria"></label>
             </div>
@@ -2277,7 +2329,18 @@ function renderStock() {
   bindTableSearch("stock-search", "stock");
   bindStockHistory();
   const entry = document.querySelector("#stock-entry-form");
-  if (entry) entry.addEventListener("submit", submitForm("/api/stock/entry", "Entrada registrada."));
+  if (entry) {
+    bindStockEntryProductPicker(entry);
+    entry.addEventListener("submit", async (event) => {
+      if (!entry.elements.productId.value) {
+        event.preventDefault();
+        setMessage("Selecione um produto para registrar a entrada.", true);
+        entry.querySelector("#stock-entry-product-search")?.focus();
+        return;
+      }
+      await submitForm("/api/stock/entry", "Entrada registrada.")(event);
+    });
+  }
 }
 
 function renderShowroom() {
